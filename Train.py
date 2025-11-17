@@ -41,12 +41,12 @@ class ASPairDataset(Dataset):
                  vocab_size,
                  max_len=128,
                  mask_prob=0.15,
-                 cls_id=0, sep_id=1, mask_id=2):
+                 pad_id = 0, cls_id=1, sep_id=2, mask_id=3):
         self.lines = open(path_file).read().strip().splitlines()
         self.max_len = max_len
         self.mask_prob = mask_prob
         self.vocab_size = vocab_size
-        self.special_ids = {'[CLS]': cls_id, '[SEP]': sep_id, '[MASK]': mask_id}
+        self.special_ids = {'[PAD]':pad_id, '[CLS]': cls_id, '[SEP]': sep_id, '[MASK]': mask_id}
 
     def __len__(self): return len(self.lines)
 
@@ -245,7 +245,8 @@ class ASBert(nn.Module):
                 mlm_labels.view(-1))
 
             # MFR 只在被 mask 的位置计算
-            mask_pos = mlm_labels.ne(-100).unsqueeze(-1).expand_as(logits_mfr)
+            # mask_pos = mlm_labels.ne(-100).unsqueeze(-1).expand_as(logits_mfr)
+            mask_pos = mlm_labels.ne(-100) 
             feat_labels = self.feat_table(input_ids)      # (B,L,2K)
             mfr_loss = F.smooth_l1_loss(
                 logits_mfr[mask_pos],
@@ -256,7 +257,7 @@ class ASBert(nn.Module):
 
             total_loss = mlm_loss + self.cfg.lam_mfr*mfr_loss + self.cfg.lam_nsp*nsp_loss
 
-        return total_loss, (logits_mlm, logits_mfr, logits_nsp)
+        return total_loss, (logits_mlm, logits_mfr, logits_nsp, hidden)
 
 # -------------------------------------------------
 # 3. Train  -------------------------------------------------
@@ -315,7 +316,7 @@ def train(cfg):
             input_ids = batch['input_ids'].to(device)
             att_mask  = batch['attention_mask'].to(device)
             token_type= batch['token_type_ids'].to(device)
-            _, (hidden, _,_) = model(input_ids, token_type, att_mask)
+            _, (_, _, _, hidden) = model(input_ids, token_type, att_mask)
             # hidden : (B,L,d)
             for b in range(hidden.size(0)):
                 ids = input_ids[b]       # (L,)

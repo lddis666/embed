@@ -26,4 +26,4 @@ def extract_as_paths_from_bz2(input_bz2_path, output_txt_path):
                     outfile.write(" ".join(as_path) + "\n")
 
 # 用法示例
-extract_as_paths_from_bz2("/Users/ldd/Desktop/embed/dataset/oix-full-snapshot-2025-01-01-0200.bz2", "AS_PATH.txt")
+extract_as_paths_from_bz2("./dataset/oix-full-snapshot-2025-01-01-0200.bz2", "AS_PATH.txt")

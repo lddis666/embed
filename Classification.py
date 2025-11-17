@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
@@ -127,19 +128,23 @@ class ASClassificationPipeline:
 
 
 
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-# emb_loader = ASEmbeddingLoader("/Users/ldd/Desktop/embed/dataset/bgp2vec-embeddings.txt", device="cpu")
-emb_loader = ASEmbeddingLoader("/Users/ldd/Desktop/embed/dataset/node2vec-embeddings16-10-100.txt", device="cpu")
-# emb_loader = ASEmbeddingLoader("/Users/ldd/Desktop/embed/dataset/deepwalk-embeddings-wl100-ws-10.txt", device="cpu")
+# emb_loader = ASEmbeddingLoader("./dataset/bgp2vec-embeddings.txt", device=device)
+# emb_loader = ASEmbeddingLoader("./dataset/node2vec-embeddings16-10-100.txt", device=device)
+# emb_loader = ASEmbeddingLoader("./dataset/deepwalk-embeddings-wl100-ws-10.txt", device=device)
+emb_loader = ASEmbeddingLoader("./feature_embeddings.csv", device=device)
 
-# ds = ASCategoryDataset('/Users/ldd/Desktop/embed/node_features.csv', category='industry', min_count=5000, to_merge=True,embedding_loader =  emb_loader)
 
-# ds =  ASCategoryDataset('/Users/ldd/Desktop/embed/node_features.csv', category='continent',      min_count=500, to_merge=True, embedding_loader=emb_loader)
-# ds =  ASCategoryDataset('/Users/ldd/Desktop/embed/node_features.csv', category='traffic_ratio',  min_count=500, to_merge=True, embedding_loader=emb_loader)
-# ds =  ASCategoryDataset('/Users/ldd/Desktop/embed/node_features.csv', category='scope',          min_count=500, to_merge=True, embedding_loader=emb_loader)
-# ds =  ASCategoryDataset('/Users/ldd/Desktop/embed/node_features.csv', category='network_type',   min_count=500, to_merge=True, embedding_loader=emb_loader)
-ds =  ASCategoryDataset('/Users/ldd/Desktop/embed/node_features.csv', category='policy',         min_count=500, to_merge=True, embedding_loader=emb_loader)
-# ds =  ASCategoryDataset('/Users/ldd/Desktop/embed/node_features.csv', category='industry',       min_count=500, to_merge=True, embedding_loader=emb_loader)
+
+# ds = ASCategoryDataset('./node_features.csv', category='industry', min_count=5000, to_merge=True,embedding_loader =  emb_loader)
+
+# ds =  ASCategoryDataset('./node_features.csv', category='continent',      min_count=500, to_merge=True, embedding_loader=emb_loader)
+# ds =  ASCategoryDataset('./node_features.csv', category='traffic_ratio',  min_count=500, to_merge=True, embedding_loader=emb_loader)
+# ds =  ASCategoryDataset('./node_features.csv', category='scope',          min_count=500, to_merge=True, embedding_loader=emb_loader)
+# ds =  ASCategoryDataset('./node_features.csv', category='network_type',   min_count=500, to_merge=True, embedding_loader=emb_loader)
+# ds =  ASCategoryDataset('./node_features.csv', category='policy',         min_count=500, to_merge=True, embedding_loader=emb_loader)
+ds =  ASCategoryDataset('./node_features.csv', category='industry',       min_count=500, to_merge=True, embedding_loader=emb_loader)
 
 
 print(len(ds))
@@ -150,7 +155,7 @@ pipeline = ASClassificationPipeline(
     batch_size=32, 
     val_ratio=0.1, 
     test_ratio=0.1, 
-    embedding_dim=16
+    embedding_dim=len(list(emb_loader.asn_to_embedding.values())[0])
 )
 
 pipeline.train(epochs=20)
