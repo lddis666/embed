@@ -16,7 +16,7 @@ from torch.utils.data import Dataset, DataLoader
 
 class Config:
     # 文件路径
-    as_path_file = "AS_PATH.txt"      # 每行: "3356 6939 15169"
+    as_path_file = "filtered_paths.txt"      # 每行: "3356 6939 15169"
     feature_file = "feature_embeddings.txt"          # CSV: "ASN, emb1, emb2, ..., embK"
     output_dir = "output"
 
@@ -36,7 +36,7 @@ class Config:
     mask_prob = 0.15     # MAP/MFR 的 mask 比例
 
     # 训练相关
-    batch_size = 32
+    batch_size = 256
     num_epochs = 5
     learning_rate = 1e-4
     weight_decay = 1e-2
@@ -854,25 +854,57 @@ if __name__ == "__main__":
         emb_static = model.get_as_static_embedding().cpu().numpy()  # (V, d_model)
 
     # 输出为 TSV: ASN + d 维向量
-    static_emb_file = os.path.join(cfg.output_dir, "as_static_embedding.tsv")
+    static_emb_file = os.path.join(cfg.output_dir, "as_static_embedding.txt")
+    # with open(static_emb_file, "w") as f:
+    #     for idx in range(V):
+    #         asn = idx2asn[idx]
+    #         vec = emb_static[idx].tolist()
+    #         f.write(str(asn) + "\t" + "\t".join(f"{v:.6f}" for v in vec) + "\n")
+    # print(f"Static embeddings saved to {static_emb_file}")
+
     with open(static_emb_file, "w") as f:
+        # 写入表头
+        dim = len(emb_static[0])
+        header = "ASN," + ",".join(f"emb{i+1}" for i in range(dim))
+        f.write(header + "\n")
+
+        # 写入每一行 embedding
         for idx in range(V):
             asn = idx2asn[idx]
             vec = emb_static[idx].tolist()
-            f.write(str(asn) + "\t" + "\t".join(f"{v:.6f}" for v in vec) + "\n")
+            line = str(asn) + "," + ",".join(f"{v:.8f}" for v in vec)
+            f.write(line + "\n")
+
     print(f"Static embeddings saved to {static_emb_file}")
+
 
     # 12. 导出上下文平均 embedding
     print("Building contextual embeddings...")
     ctx_dataloader = DataLoader(dataset, batch_size=cfg.batch_size, shuffle=False, num_workers=0)
     emb_ctx = build_contextual_embeddings(model, ctx_dataloader, tokenIdx2asnIdx).cpu().numpy()
 
-    ctx_emb_file = os.path.join(cfg.output_dir, "as_contextual_embedding.tsv")
+    ctx_emb_file = os.path.join(cfg.output_dir, "as_contextual_embedding.txt")
+    # with open(ctx_emb_file, "w") as f:
+    #     for idx in range(V):
+    #         asn = idx2asn[idx]
+    #         vec = emb_ctx[idx].tolist()
+    #         f.write(str(asn) + "\t" + "\t".join(f"{v:.6f}" for v in vec) + "\n")
+    # print(f"Contextual embeddings saved to {ctx_emb_file}")
+
     with open(ctx_emb_file, "w") as f:
+        # 写入表头
+        dim = len(emb_ctx[0])
+        header = "ASN," + ",".join(f"emb{i+1}" for i in range(dim))
+        f.write(header + "\n")
+
+        # 写入每一行 embedding
         for idx in range(V):
             asn = idx2asn[idx]
             vec = emb_ctx[idx].tolist()
-            f.write(str(asn) + "\t" + "\t".join(f"{v:.6f}" for v in vec) + "\n")
+            line = str(asn) + "," + ",".join(f"{v:.8f}" for v in vec)
+            f.write(line + "\n")
+
     print(f"Contextual embeddings saved to {ctx_emb_file}")
+
 
     print("Done.")
