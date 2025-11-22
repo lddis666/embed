@@ -369,7 +369,7 @@ class ASPathDataset(Dataset):
                 map_labels[i] = tid
 
                 # MFR 目标特征取对应 AS 的 F'
-                asn_idx = tokenIdx2asnIdx.get(tid, -1)
+                asn_idx = self.tokenIdx2asnIdx.get(tid, -1)
                 if asn_idx >= 0:
                     mfr_targets[i] = self.F_prime[asn_idx]
                 else:
@@ -507,6 +507,11 @@ class ASBertModel(nn.Module):
         # NSP head
         self.nsp_head = nn.Linear(d_model, 2)
 
+        token_to_asn = torch.full((vocab_size,), -1, dtype=torch.long)
+        for tid, asn_idx in tokenIdx2asnIdx.items():
+            token_to_asn[tid] = asn_idx
+        self.register_buffer("token_to_asn", token_to_asn)
+
     def get_as_static_embedding(self):
         """
         导出静态 embedding（不经过 Transformer）：
@@ -559,11 +564,13 @@ class ASBertModel(nn.Module):
         # 对于非 AS token (特殊 token、PAD)，不加特征
         # 对 AS token: e_feat = MLP(F'[asn_idx]); g = gate(miss_ratio[asn_idx])
         # 需要从 token_idx -> asn_idx
-        asn_idx_tensor = torch.full_like(input_ids, fill_value=-1)
-        for tid, asn_idx in self.tokenIdx2asnIdx.items():
-            # tid: token idx
-            if asn_idx >= 0:
-                asn_idx_tensor[input_ids == tid] = asn_idx
+        # asn_idx_tensor = torch.full_like(input_ids, fill_value=-1)
+        # for tid, asn_idx in self.tokenIdx2asnIdx.items():
+        #     # tid: token idx
+        #     if asn_idx >= 0:
+        #         asn_idx_tensor[input_ids == tid] = asn_idx
+
+        asn_idx_tensor = self.token_to_asn[input_ids]  # (B, L), -1 表示非 AS token
 
         # mask: 是否是 AS token
         is_as_token = asn_idx_tensor >= 0
