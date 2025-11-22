@@ -32,15 +32,15 @@ class Config:
     # F': 2K: 特征 + 缺失mask
 
     # 路径处理
-    max_seq_len = 128
+    max_seq_len = 32
     mask_prob = 0.15     # MAP/MFR 的 mask 比例
 
     # 训练相关
-    batch_size = 256
+    batch_size = 512
     num_epochs = 5
     learning_rate = 1e-4
     weight_decay = 1e-2
-    warmup_steps = 1000
+    warmup_steps = 100
 
     # 多任务权重
     lambda_map = 1.0
@@ -431,7 +431,7 @@ class GateModule(nn.Module):
     这里用简单版本：g_i = sigmoid(w * miss_ratio + b)
     """
 
-    def __init__(self, d_model):
+    def __init__(self):
         super().__init__()
         self.w = nn.Parameter(torch.zeros(1))
         self.b = nn.Parameter(torch.zeros(1))
@@ -485,7 +485,7 @@ class ASBertModel(nn.Module):
 
 
         self.feature_mlp = FeatureMLP(F_prime.shape[1], d_model, hidden_dim=d_ff, dropout=dropout)
-        self.gate = GateModule(d_model)
+        self.gate = GateModule()
 
         # Transformer Encoder
         encoder_layer = nn.TransformerEncoderLayer(
@@ -610,6 +610,7 @@ class ASBertModel(nn.Module):
             "map_logits": map_logits,
             "feat_pred": feat_pred,
             "nsp_logits": nsp_logits,
+            "hidden_states": h,
         }
 
         # 如果传入了 label，就计算 loss
@@ -706,35 +707,10 @@ def build_contextual_embeddings(model: ASBertModel,
                 mfr_mask=None,
                 nsp_label=None,
             )
-            h = out["map_logits"]  # BUG: we want encoder output, but not returned.
-            # 为了简单，我们重新跑 encoder，只输出 h
-            # 可以在 model.forward 中改写支持返回 encoder 输出，但这里简单重写：
-            encoder = model.encoder
-            tok_emb = model.token_embedding(input_ids)
+            h = out["hidden_states"]  # BUG: we want encoder output, but not returned.
+
             B, L = input_ids.size()
-            pos_ids = torch.arange(L, device=device).unsqueeze(0).expand(B, L)
-            pos_emb = model.pos_embedding(pos_ids)
-            seg_emb = model.seg_embedding(token_type_ids)
-            x = tok_emb + pos_emb + seg_emb
-            # 同样加特征
-            asn_idx_tensor = torch.full_like(input_ids, fill_value=-1)
-            for tid, asn_idx in tokenIdx2asnIdx.items():
-                if asn_idx >= 0:
-                    asn_idx_tensor[input_ids == tid] = asn_idx
-            is_as_token = asn_idx_tensor >= 0
-            if is_as_token.any():
-                asn_idx_flat = asn_idx_tensor[is_as_token]
-                Fp = model.F_prime[asn_idx_flat].to(device)
-                miss_r = model.miss_ratio[asn_idx_flat].to(device)
-                e_feat = model.feature_mlp(Fp)
-                g = model.gate(miss_r).unsqueeze(-1)
-                e_feat = g * e_feat
-                x = x.clone()
-                x[is_as_token] = x[is_as_token] + e_feat
-            x = model.layer_norm(x)
-            x = model.dropout(x)
-            src_key_padding_mask = (attention_mask == 0)
-            h = encoder(x, src_key_padding_mask=src_key_padding_mask)  # (B, L, d_model)
+
 
             # 统计每个 AS 的平均 H
             for b in range(B):
