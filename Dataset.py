@@ -80,12 +80,14 @@ CATEGORIES = {
 }
 
 class ASCategoryDataset(Dataset):
-    def __init__(self, csv_path, category, min_count=1, to_merge=False, embedding_loader=None):
+    def __init__(self, csv_path, category, min_count=1, to_merge=False, embedding_loader=None, filter_asns=None):
         """
         csv_path: csv文件路径
         category: 选择哪一种分类类别（对应CATEGORIES的key）
         min_count: 类别不足min_count的合并归为一类
         to_merge: 是否合并数量太少的类别
+        embedding_loader: 提供 ASN → embedding 的 loader
+        filter_asns: 可选, 传入一个 ASN 列表/集合，仅保留这些 ASN
         """
         self.df = pd.read_csv(csv_path)
 
@@ -103,6 +105,15 @@ class ASCategoryDataset(Dataset):
             # 保留这些ASN对应的行
             self.df = self.df[self.df['ASN'].astype(int).isin(has_embedding)].reset_index(drop=True)
             print(len(self.df))
+            self.ASNs = self.df['ASN'].astype(int).tolist()
+
+        # 再过滤用户传进来的 filter_asns
+        if filter_asns is not None:
+            filter_asns = set(filter_asns)  # 支持 list/tuple 等
+            before = len(self.df)
+            self.df = self.df[self.df['ASN'].astype(int).isin(filter_asns)].reset_index(drop=True)
+            print(len(filter_asns))
+            print(f"Filtered by user list: {before} → {len(self.df)}")
             self.ASNs = self.df['ASN'].astype(int).tolist()
 
         labels_matrix = self.df[self.fields].values.astype(float)
