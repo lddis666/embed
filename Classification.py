@@ -133,17 +133,17 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # emb_loader = ASEmbeddingLoader("./dataset/bgp2vec-embeddings.txt", device=device)
 emb_loader = ASEmbeddingLoader("./dataset/node2vec-embeddings16-10-100.txt", device=device)
 # emb_loader = ASEmbeddingLoader("./dataset/deepwalk-embeddings-wl100-ws-10.txt", device=device)
-# emb_loader = ASEmbeddingLoader("./output/as_contextual_embedding.txt", device=device)
+emb_loader = ASEmbeddingLoader("./output/as_contextual_embedding.txt", device=device)
 # emb_loader = ASEmbeddingLoader("./output/as_static_embedding.txt", device=device)
 
 
 
 # ds = ASCategoryDataset('./node_features.csv', category='industry', min_count=5000, to_merge=True,embedding_loader =  emb_loader)
 
-# ds =  ASCategoryDataset('./node_features.csv', category='continent',      min_count=500, to_merge=True, embedding_loader=emb_loader)
-ds =  ASCategoryDataset('./node_features.csv', category='traffic_ratio',  min_count=5000, to_merge=True, embedding_loader=emb_loader)
-# ds =  ASCategoryDataset('./node_features.csv', category='scope',          min_count=500, to_merge=True, embedding_loader=emb_loader)
-# ds =  ASCategoryDataset('./node_features.csv', category='network_type',   min_count=500, to_merge=True, embedding_loader=emb_loader)
+ds =  ASCategoryDataset('./node_features.csv', category='continent',      min_count=1000, to_merge=True, embedding_loader=emb_loader)
+ds =  ASCategoryDataset('./node_features.csv', category='traffic_ratio',  min_count=1000, to_merge=True, embedding_loader=emb_loader)
+ds =  ASCategoryDataset('./node_features.csv', category='scope',          min_count=1000, to_merge=True, embedding_loader=emb_loader)
+ds =  ASCategoryDataset('./node_features.csv', category='network_type',   min_count=1000, to_merge=True, embedding_loader=emb_loader)
 # ds =  ASCategoryDataset('./node_features.csv', category='policy',         min_count=500, to_merge=True, embedding_loader=emb_loader)
 # ds =  ASCategoryDataset('./node_features.csv', category='industry',       min_count=500, to_merge=True, embedding_loader=emb_loader)
 
