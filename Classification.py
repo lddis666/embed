@@ -98,7 +98,6 @@ class ASClassificationPipeline:
         y_pred = []
         with torch.no_grad():
             for asn_batch, label_batch in loader:
-                # emb = self._batch_asn_to_embedding(asn_batch)
                 label_batch = label_batch.to(self.device)
                 logits = self.model(asn_batch)
                 preds = torch.argmax(logits, dim=1)
@@ -106,7 +105,8 @@ class ASClassificationPipeline:
                 y_pred.extend(preds.cpu().numpy())
         acc = accuracy_score(y_true, y_pred)
         f1_str = classification_report(y_true, y_pred,  zero_division=0)
-        return acc, f1_str
+        report_dict = classification_report(y_true, y_pred, output_dict=True, zero_division=0)
+        return acc, f1_str, report_dict
 
     def predict(self, asn_list):
         # asn_list: list of ASN (int)
@@ -128,40 +128,6 @@ class ASClassificationPipeline:
     
 
 
-
-# device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-
-
-
-
-# # emb_loader = ASEmbeddingLoader("./dataset/bgp2vec-embeddings.txt", device=device)
-# emb_loader = ASEmbeddingLoader("./dataset/node2vec-embeddings16-10-100.txt", device=device)
-# emb_loader = ASEmbeddingLoader("./output/as_contextual_embedding.txt", device=device)
-# # emb_loader = ASEmbeddingLoader("./output/as_static_embedding.txt", device=device)
-
-
-
-# ds =  ASCategoryDataset('./node_features.csv', category='continent',      min_count=1000, to_merge=True, embedding_loader=emb_loader)
-# ds =  ASCategoryDataset('./node_features.csv', category='traffic_ratio',  min_count=1000, to_merge=True, embedding_loader=emb_loader)
-# ds =  ASCategoryDataset('./node_features.csv', category='scope',          min_count=1000, to_merge=True, embedding_loader=emb_loader)
-# ds =  ASCategoryDataset('./node_features.csv', category='network_type',   min_count=1000, to_merge=True, embedding_loader=emb_loader)
-# # ds =  ASCategoryDataset('./node_features.csv', category='policy',         min_count=1000, to_merge=True, embedding_loader=emb_loader)
-# # ds =  ASCategoryDataset('./node_features.csv', category='industry',       min_count=1000, to_merge=True, embedding_loader=emb_loader)
-
-
-
-# pipeline = ASClassificationPipeline(
-#     ds, 
-#     emb_loader, 
-#     batch_size=32, 
-#     val_ratio=0.1, 
-#     test_ratio=0.1, 
-#     embedding_dim=len(list(emb_loader.asn_to_embedding.values())[0])
-# )
-
-# pipeline.train(epochs=3)
-# print('Test F1:\n', pipeline.evaluate(split='test')[1])
 
 
 
@@ -197,19 +163,6 @@ categories = [
 # ===========================================================
 #          函数：从 classification_report 中提取 macro F1
 # ===========================================================
-
-# def extract_macro_f1(report_str):
-#     """
-#     从 sklearn classification_report 的字符串中提取 macro avg F1-score
-#     """
-#     for line in report_str.splitlines():
-#         if "macro avg" in line:
-#             parts = re.split(r"\s+", line.strip())
-#             # macro avg 行一般格式为:
-#             # macro avg    precision    recall    f1-score    support
-#             f1 = float(parts[-2])
-#             return f1
-#     return None
 
 
     
@@ -296,14 +249,15 @@ for emb_path in embedding_files:
             embedding_dim=embedding_dim
         )
 
-        pipeline.train(epochs=5)
+        pipeline.train(epochs=20)
 
-        _, report = pipeline.evaluate(split='test')
+        _, report, report_dict = pipeline.evaluate(split='test')
 
-        # report 是 classification_report 的字符串
-        macro_f1 = extract_macro_f1(report)
-        weighted_f1 = extract_weighted_f1(report)
-        acc = extract_accuracy(report)
+
+        
+        macro_f1 = report_dict['macro avg']['f1-score']
+        weighted_f1 = report_dict['weighted avg']['f1-score']
+        acc = report_dict['accuracy']
 
         print("\nClassification Report:")
         print(report)
@@ -331,3 +285,53 @@ for emb_path, cat_results in results.items():
               f"acc={data['acc']:.4f}, "
               f"macro_f1={data['macro_f1']:.4f}, "
               f"weighted_f1={data['weighted_f1']:.4f}")
+        
+
+
+
+
+# device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+# def extract_macro_f1(report_str):
+#     """
+#     从 sklearn classification_report 的字符串中提取 macro avg F1-score
+#     """
+#     for line in report_str.splitlines():
+#         if "macro avg" in line:
+#             parts = re.split(r"\s+", line.strip())
+#             # macro avg 行一般格式为:
+#             # macro avg    precision    recall    f1-score    support
+#             f1 = float(parts[-2])
+#             return f1
+#     return None
+
+
+
+# # emb_loader = ASEmbeddingLoader("./dataset/bgp2vec-embeddings.txt", device=device)
+# emb_loader = ASEmbeddingLoader("./dataset/node2vec-embeddings16-10-100.txt", device=device)
+# emb_loader = ASEmbeddingLoader("./output/as_contextual_embedding.txt", device=device)
+# # emb_loader = ASEmbeddingLoader("./output/as_static_embedding.txt", device=device)
+
+
+
+# ds =  ASCategoryDataset('./node_features.csv', category='continent',      min_count=1000, to_merge=True, embedding_loader=emb_loader)
+# ds =  ASCategoryDataset('./node_features.csv', category='traffic_ratio',  min_count=1000, to_merge=True, embedding_loader=emb_loader)
+# ds =  ASCategoryDataset('./node_features.csv', category='scope',          min_count=1000, to_merge=True, embedding_loader=emb_loader)
+# ds =  ASCategoryDataset('./node_features.csv', category='network_type',   min_count=1000, to_merge=True, embedding_loader=emb_loader)
+# # ds =  ASCategoryDataset('./node_features.csv', category='policy',         min_count=1000, to_merge=True, embedding_loader=emb_loader)
+# # ds =  ASCategoryDataset('./node_features.csv', category='industry',       min_count=1000, to_merge=True, embedding_loader=emb_loader)
+
+
+
+# pipeline = ASClassificationPipeline(
+#     ds, 
+#     emb_loader, 
+#     batch_size=32, 
+#     val_ratio=0.1, 
+#     test_ratio=0.1, 
+#     embedding_dim=len(list(emb_loader.asn_to_embedding.values())[0])
+# )
+
+# pipeline.train(epochs=3)
+# print('Test F1:\n', pipeline.evaluate(split='test')[1])
+
