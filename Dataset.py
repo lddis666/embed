@@ -195,6 +195,130 @@ class ASCategoryDataset(Dataset):
 
 
 
+class ASRelationDataset(Dataset):
+    """
+    用于 AS 之间关系分类的 Dataset。
+    输入：两个 ASN（或它们的 embedding）
+    输出：关系类别（如 P2P / P2C / C2P）
+    """
+    def __init__(
+        self,
+        csv_path,
+        relation_fields=("P2P", "P2C", "C2P"),
+        embedding_loader=None,
+        filter_asns=None,
+        min_count=1,
+        to_merge=False,
+    ):
+        """
+        :param csv_path: 关系 CSV 文件路径, 格式类似:
+                         ASN1,ASN2,P2P,P2C,C2P
+                         1,11537,1,0,0
+                         ...
+        :param relation_fields: 关系字段名列表，默认 ("P2P","P2C","C2P")
+        :param embedding_loader: ASEmbeddingLoader 实例 (可选)
+        :param filter_asns: 只保留这些 ASN 相关的关系 (可选, list/set)
+        :param min_count: 若 to_merge=True, 小于 min_count 的类别会被合并
+        :param to_merge: 是否合并样本数太少的关系类别
+        """
+        self.df = pd.read_csv(csv_path)
+        self.relation_fields = list(relation_fields)
+        self.embedding_loader = embedding_loader
+
+        # 确保 ASN1/ASN2 是 int
+        self.df["ASN1"] = self.df["ASN1"].astype(int)
+        self.df["ASN2"] = self.df["ASN2"].astype(int)
+
+        # 先根据 embedding_loader 过滤：没有 embedding 的 AS 不要
+        if self.embedding_loader is not None:
+            def has_both_embeddings(row):
+                return (int(row["ASN1"]) in self.embedding_loader) and \
+                       (int(row["ASN2"]) in self.embedding_loader)
+            before = len(self.df)
+            self.df = self.df[self.df.apply(has_both_embeddings, axis=1)].reset_index(drop=True)
+            print(f"Filtered by embedding_loader: {before} → {len(self.df)} rows")
+
+        # 若指定了 filter_asns，只保留出现的 ASN1/ASN2 在该集合中的样本
+        if filter_asns is not None:
+            filter_asns = set(int(a) for a in filter_asns)
+            before = len(self.df)
+            mask = self.df["ASN1"].isin(filter_asns) & self.df["ASN2"].isin(filter_asns)
+            self.df = self.df[mask].reset_index(drop=True)
+            print(f"Filtered by user ASN list: {before} → {len(self.df)} rows")
+
+        # 取关系标签矩阵
+        labels_matrix = self.df[self.relation_fields].values.astype(float)
+
+        # 删除关系全 0 的行（没有任何 P2P/P2C/C2P 标记）
+        non_zero_rows = np.where(labels_matrix.sum(axis=1) != 0)[0]
+        if len(non_zero_rows) < len(self.df):
+            print(f"Warning: {len(self.df) - len(non_zero_rows)} rows dropped due to all-zero relation labels.")
+        self.df = self.df.iloc[non_zero_rows].reset_index(drop=True)
+        labels_matrix = labels_matrix[non_zero_rows]
+
+        # one-hot -> 单个类别下标
+        label_indices = np.argmax(labels_matrix, axis=1)
+
+        # 是否合并样本太少的类别
+        if to_merge and min_count > 1:
+            counts = (labels_matrix == 1).sum(axis=0)
+            to_merge_idx = [i for i, c in enumerate(counts) if c < min_count]
+            remain_idx = [i for i in range(len(self.relation_fields)) if i not in to_merge_idx]
+
+            merged_label_name = "_".join([self.relation_fields[i] for i in to_merge_idx]) \
+                                or "Merged_Minority_Relation_Classes"
+
+            self.final_fields = [self.relation_fields[i] for i in remain_idx] + [merged_label_name]
+
+            # 映射老 index → 新 index
+            old_to_new = {}
+            for i in range(len(self.relation_fields)):
+                if i in remain_idx:
+                    old_to_new[i] = remain_idx.index(i)
+                else:
+                    old_to_new[i] = len(remain_idx)
+
+            new_label_indices = [old_to_new[idx] for idx in label_indices]
+            self.labels = new_label_indices
+        else:
+            self.final_fields = self.relation_fields
+            self.labels = label_indices.tolist()
+
+        # 把 ASN1/ASN2 保存下来，后面 __getitem__ 用
+        self.asn1_list = self.df["ASN1"].astype(int).tolist()
+        self.asn2_list = self.df["ASN2"].astype(int).tolist()
+
+    def __len__(self):
+        return len(self.asn1_list)
+
+    def __getitem__(self, idx):
+        asn1 = int(self.asn1_list[idx])
+        asn2 = int(self.asn2_list[idx])
+        label = int(self.labels[idx])
+
+        if self.embedding_loader is not None:
+            emb1 = self.embedding_loader.get_embedding(asn1)
+            emb2 = self.embedding_loader.get_embedding(asn2)
+            # # 你可以在这里选择：
+            # # 1) 返回 (emb1, emb2, label)
+            # # 2) 或者 cat 在一起: torch.cat([emb1, emb2]), label
+            # # 下面采用第一种，由模型自己决定如何组合
+            # return emb1, emb2, label
+            
+            # 拼成 (2, D)，DataLoader 后就是 (B, 2, D)
+            pair_emb = torch.stack([emb1, emb2], dim=0)
+            return pair_emb, label
+        else:
+            return asn1, asn2, label
+
+    def get_label_map(self):
+        """编号到关系名"""
+        return {i: name for i, name in enumerate(self.final_fields)}
+
+    def get_label_count(self):
+        """每个关系类别的样本数"""
+        from collections import Counter
+        return dict(Counter(self.labels))
 
 
 
@@ -239,6 +363,9 @@ class ASEmbeddingLoader:
         """
         emb_list = [self.get_embedding(asn) for asn in asn_list]
         return torch.stack(emb_list, dim=0)
+    
+
+
     
 
 # # ======= 用法示例 =======

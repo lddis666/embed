@@ -6,8 +6,8 @@ from sklearn.metrics import accuracy_score
 import numpy as np
 from torch.utils.data import DataLoader
 from sklearn.metrics import classification_report
-from Dataset import ASCategoryDataset, ASEmbeddingLoader
-from Model import ASClassifier
+from Dataset import ASCategoryDataset, ASEmbeddingLoader, ASRelationDataset
+from Model import ASClassifier, ToRClassifier
 import re
 
 
@@ -25,6 +25,7 @@ class ASClassificationPipeline:
         lr=5e-3,
         device=None,
         seed=42,
+        single_type = True, 
     ):
         self.ds = ds
         self.emb_loader = emb_loader
@@ -33,6 +34,7 @@ class ASClassificationPipeline:
         self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
         self.lr = lr
         self.seed = seed
+        self.single_type = single_type
         torch.manual_seed(seed)
         numpy_rng = np.random.default_rng(seed)
         # dataset split
@@ -59,7 +61,10 @@ class ASClassificationPipeline:
 
         # 网络结构
         num_classes = len(ds.get_label_map())
-        self.model = ASClassifier(embedding_dim, num_classes).to(self.device)
+        if self.single_type:
+            self.model = ASClassifier(embedding_dim, num_classes).to(self.device)
+        else:
+            self.model = ToRClassifier(embedding_dim, num_classes).to(self.device)
         self.criterion = nn.CrossEntropyLoss(weight=class_weights)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
         self.label_map = ds.get_label_map()  # 标签编号到类别名映射
@@ -76,6 +81,7 @@ class ASClassificationPipeline:
             self.model.train()
             losses = []
             for asn_batch, label_batch in self.train_loader:
+
                 # 获取embedding
                 label_batch = label_batch.to(self.device)
                 logits = self.model(asn_batch)
@@ -108,20 +114,20 @@ class ASClassificationPipeline:
         report_dict = classification_report(y_true, y_pred, output_dict=True, zero_division=0)
         return acc, f1_str, report_dict
 
-    def predict(self, asn_list):
-        # asn_list: list of ASN (int)
-        self.model.eval()
-        embs = self.emb_loader.get_batch(asn_list).to(self.device)
-        with torch.no_grad():
-            logits = self.model(embs)
-            preds = torch.argmax(logits, dim=1)
-        # 返回类别编号和类别名
-        idx2label = self.label_map
+    # def predict(self, asn_list):
+    #     # asn_list: list of ASN (int)
+    #     self.model.eval()
+    #     embs = self.emb_loader.get_batch(asn_list).to(self.device)
+    #     with torch.no_grad():
+    #         logits = self.model(embs)
+    #         preds = torch.argmax(logits, dim=1)
+    #     # 返回类别编号和类别名
+    #     idx2label = self.label_map
 
-        # print(idx2label)
+    #     # print(idx2label)
 
-        class_names = [idx2label[p.item()] for p in preds]
-        return preds.cpu().tolist(), class_names
+    #     class_names = [idx2label[p.item()] for p in preds]
+    #     return preds.cpu().tolist(), class_names
 
     def get_label_map(self):
         return self.label_map
@@ -141,25 +147,26 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # 1. Embedding 列表
 # -----------------------------
 embedding_files = [
-    "./dataset/bgp2vec-embeddings.txt",
-    "./dataset/node2vec-embeddings16-10-100.txt",
+    # "./dataset/bgp2vec-embeddings.txt",
+    # "./dataset/node2vec-embeddings16-10-100.txt",
     "./output/as_contextual_embedding.txt",
-    "./output/as_static_embedding.txt", 
-    "./dataset/beam.txt",
-    "./output/as_contextual_embedding_only_map.txt",
-    "./bgp2vec/bgp2vec_asn_embeddings.txt"
+    # "./output/as_static_embedding.txt", 
+    # "./dataset/beam.txt",
+    # "./output/as_contextual_embedding_only_map.txt",
+    # "./bgp2vec/bgp2vec_asn_embeddings.txt"
 ]
 
 # -----------------------------
 # 2. 分类任务列表
 # -----------------------------
 categories = [
-    'continent',
-    'traffic_ratio',
-    'scope',
-    'network_type',
-    'policy',
-    'industry'
+    # 'continent',
+    # 'traffic_ratio',
+    # 'scope',
+    # 'network_type',
+    # 'policy',
+    # 'industry',
+    'as_relation'
 ]
 
 # ===========================================================
@@ -233,14 +240,22 @@ for emb_path in embedding_files:
 
         print(f"\n--- Category: {cat} ---")
 
-        ds = ASCategoryDataset(
-            './node_features.csv',
-            category=cat,
-            min_count=500,
-            to_merge=True,
-            embedding_loader=emb_loader,
-            filter_asns=all_as_set
-        )
+        if cat == 'as_relation':
+            ds = ASRelationDataset(
+                csv_path='./dataset/as_relations_onehot.txt',
+                relation_fields=("P2P", "P2C", "C2P"),
+                embedding_loader=emb_loader,  
+                filter_asns=all_as_set,
+            )
+        else:
+            ds = ASCategoryDataset(
+                './node_features.csv',
+                category=cat,
+                min_count=500,
+                to_merge=True,
+                embedding_loader=emb_loader,
+                filter_asns=all_as_set
+            )
 
         pipeline = ASClassificationPipeline(
             ds,
@@ -248,7 +263,8 @@ for emb_path in embedding_files:
             batch_size=512,
             val_ratio=0.1,
             test_ratio=0.1,
-            embedding_dim=embedding_dim
+            embedding_dim=embedding_dim,
+            single_type=False if cat == 'as_relation' else True
         )
 
         pipeline.train(epochs=50)
