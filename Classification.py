@@ -18,11 +18,11 @@ class ASClassificationPipeline:
         self, 
         ds, 
         emb_loader, 
-        batch_size=256, 
+        batch_size=512, 
         val_ratio=0.1, 
         test_ratio=0.1, 
         embedding_dim=16, 
-        lr=1e-3,
+        lr=5e-3,
         device=None,
         seed=42,
     ):
@@ -145,7 +145,9 @@ embedding_files = [
     "./dataset/node2vec-embeddings16-10-100.txt",
     "./output/as_contextual_embedding.txt",
     "./output/as_static_embedding.txt", 
-    "./dataset/beam.txt"
+    "./dataset/beam.txt",
+    "./output/as_contextual_embedding_only_map.txt",
+    "./bgp2vec/bgp2vec_asn_embeddings.txt"
 ]
 
 # -----------------------------
@@ -243,13 +245,13 @@ for emb_path in embedding_files:
         pipeline = ASClassificationPipeline(
             ds,
             emb_loader,
-            batch_size=32,
+            batch_size=512,
             val_ratio=0.1,
             test_ratio=0.1,
             embedding_dim=embedding_dim
         )
 
-        pipeline.train(epochs=20)
+        pipeline.train(epochs=50)
 
         _, report, report_dict = pipeline.evaluate(split='test')
 

@@ -37,19 +37,20 @@ class Config:
 
     # 训练相关
     batch_size = 512
-    num_epochs = 5
+    num_epochs = 15
     learning_rate = 1e-4
     weight_decay = 1e-2
     warmup_steps = 100
 
     # 多任务权重
-    lambda_map = 1.0
+    lambda_map = 2.0
     lambda_mfr = 1.0
     lambda_nsp = 0.5
 
     # 其它
     seed = 42
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    save_name = "only_map"
 
 
 cfg = Config()
@@ -247,7 +248,8 @@ class ASPathDataset(Dataset):
                  max_seq_len: int,
                  mask_prob: float,
                  F_prime: np.ndarray,
-                 miss_ratio: np.ndarray):
+                 miss_ratio: np.ndarray,
+                 for_inference: bool = False):
         """
         paths_idx: List[List[int]], 每个元素是 AS idx（0..V-1)
         asnIdx2tokenIdx: 将 AS idx 映射到 token idx (从4开始)
@@ -261,9 +263,14 @@ class ASPathDataset(Dataset):
         self.mask_prob = mask_prob
         self.F_prime = F_prime
         self.miss_ratio = miss_ratio
+        self.for_inference = for_inference
 
-        # 预构造所有“切割对”，以便 NSP 采样
-        self.split_pairs = self.build_split_pairs(paths_idx)
+        if not self.for_inference:
+            # 训练模式才需要 NSP 的 split_pairs
+            self.split_pairs = self.build_split_pairs(paths_idx)
+        else:
+            # 推理/统计模式，直接用完整路径列表
+            self.split_pairs = None
 
     def build_split_pairs(self, paths):
         """
@@ -300,6 +307,8 @@ class ASPathDataset(Dataset):
             mfr_mask:  对哪些位置参与 MFR loss（相当于 mask 的位置）
             nsp_label: 0/1
         """
+
+
         pid, A, B = self.split_pairs[idx]
 
         # 50% 正样本 (A,B) 来自同一路径
@@ -353,6 +362,15 @@ class ASPathDataset(Dataset):
         seg_ids = np.array(seg_ids, dtype=np.int64)
         attention_mask = np.array(attention_mask, dtype=np.float32)
 
+
+        if self.for_inference:
+            # 推理/统计模式：不做 mask，不返回 label
+            return {
+                "input_ids": torch.from_numpy(tokens),
+                "token_type_ids": torch.from_numpy(seg_ids),
+                "attention_mask": torch.from_numpy(attention_mask),
+            }
+
         # 准备 MAP + MFR 的 mask
         # 对真实 AS token（非特殊、非 pad）以 mask_prob 的概率进行 mask
         map_labels = np.full_like(tokens, fill_value=-100, dtype=np.int64)
@@ -398,6 +416,7 @@ class ASPathDataset(Dataset):
             "nsp_label": torch.tensor(is_next, dtype=torch.long),
         }
 
+       
 
 ########################################
 #             模型定义
@@ -642,9 +661,14 @@ class ASBertModel(nn.Module):
             else:
                 nsp_loss = torch.tensor(0.0, device=device)
 
-            total_loss = (cfg.lambda_map * map_loss
-                          + cfg.lambda_mfr * mfr_loss
-                          + cfg.lambda_nsp * nsp_loss)
+            # total_loss = (cfg.lambda_map * map_loss
+            #               + cfg.lambda_mfr * mfr_loss
+            #               + cfg.lambda_nsp * nsp_loss)
+
+            # total_loss = (cfg.lambda_map * map_loss
+            #               + cfg.lambda_nsp * nsp_loss)
+
+            total_loss = cfg.lambda_map * map_loss
 
             outputs["loss"] = total_loss
             outputs["map_loss"] = map_loss
@@ -707,7 +731,7 @@ def build_contextual_embeddings(model: ASBertModel,
                 mfr_mask=None,
                 nsp_label=None,
             )
-            h = out["hidden_states"]  # BUG: we want encoder output, but not returned.
+            h = out["hidden_states"]  
 
             B, L = input_ids.size()
 
@@ -841,7 +865,7 @@ if __name__ == "__main__":
         emb_static = model.get_as_static_embedding().cpu().numpy()  # (V, d_model)
 
     # 输出为 TSV: ASN + d 维向量
-    static_emb_file = os.path.join(cfg.output_dir, "as_static_embedding.txt")
+    static_emb_file = os.path.join(cfg.output_dir, f"as_static_embedding_{cfg.save_name}.txt")
     # with open(static_emb_file, "w") as f:
     #     for idx in range(V):
     #         asn = idx2asn[idx]
@@ -867,10 +891,10 @@ if __name__ == "__main__":
 
     # 12. 导出上下文平均 embedding
     print("Building contextual embeddings...")
-    ctx_dataloader = DataLoader(dataset, batch_size=cfg.batch_size, shuffle=False, num_workers=0)
+    ctx_dataloader = DataLoader(dataset, batch_size=cfg.batch_size, shuffle=False, num_workers=0, for_inference = True)
     emb_ctx = build_contextual_embeddings(model, ctx_dataloader, tokenIdx2asnIdx).cpu().numpy()
 
-    ctx_emb_file = os.path.join(cfg.output_dir, "as_contextual_embedding.txt")
+    ctx_emb_file = os.path.join(cfg.output_dir, f"as_contextual_embedding_{cfg.save_name}.txt")
     # with open(ctx_emb_file, "w") as f:
     #     for idx in range(V):
     #         asn = idx2asn[idx]
