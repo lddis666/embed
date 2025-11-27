@@ -12,6 +12,24 @@ import re
 
 
     
+class FocalLoss(nn.Module):
+    def __init__(self, alpha=None, gamma=2.0, reduction='mean'):
+        super().__init__()
+        self.alpha = alpha  # Tensor: [num_classes], 类似 class weight
+        self.gamma = gamma
+        self.reduction = reduction
+        self.ce = nn.CrossEntropyLoss(weight=alpha, reduction='none')
+
+    def forward(self, logits, target):
+        ce_loss = self.ce(logits, target)  # [B]
+        pt = torch.exp(-ce_loss)           # 预测正确的概率
+        focal_loss = ((1 - pt) ** self.gamma) * ce_loss
+        if self.reduction == 'mean':
+            return focal_loss.mean()
+        elif self.reduction == 'sum':
+            return focal_loss.sum()
+        else:
+            return focal_loss
 
 class ASClassificationPipeline:
     def __init__(
@@ -53,9 +71,15 @@ class ASClassificationPipeline:
         for _, label in self.ds:
             label_counts[label] += 1
 
-        # 计算加权交叉熵的权重，常用方式：inverse frequency
-        weights = 1.0 / (label_counts + 1e-6)
-        weights = weights / weights.sum() * len(weights)  # 归一化使平均权重为1
+        # # 计算加权交叉熵的权重，常用方式：inverse frequency
+        # weights = 1.0 / (label_counts + 1e-6)
+        # weights = weights / weights.sum() * len(weights)  # 归一化使平均权重为1
+
+        freq = label_counts / label_counts.sum()
+        inv_freq = 1.0 / (freq + 1e-6)
+        weights = np.sqrt(inv_freq)  # 或 np.log(1 + inv_freq)
+        weights = weights / weights.mean()
+
         class_weights = torch.tensor(weights, dtype=torch.float, device=self.device)
 
 
@@ -65,7 +89,8 @@ class ASClassificationPipeline:
             self.model = ASClassifier(embedding_dim, num_classes).to(self.device)
         else:
             self.model = ToRClassifier(embedding_dim, num_classes).to(self.device)
-        self.criterion = nn.CrossEntropyLoss(weight=class_weights)
+        # self.criterion = nn.CrossEntropyLoss(weight=class_weights)
+        self.criterion = FocalLoss(alpha=class_weights, gamma=2.0, reduction='mean')
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
         self.label_map = ds.get_label_map()  # 标签编号到类别名映射
 
@@ -149,23 +174,26 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 embedding_files = [
     # "./dataset/bgp2vec-embeddings.txt",
     # "./dataset/node2vec-embeddings16-10-100.txt",
-    "./output/as_contextual_embedding.txt",
+    # "./output/as_contextual_embedding.txt",
     # "./output/as_static_embedding.txt", 
     # "./dataset/beam.txt",
-    # "./output/as_contextual_embedding_only_map.txt",
-    # "./bgp2vec/bgp2vec_asn_embeddings.txt"
+    "./output/as_contextual_embedding_only_map.txt",
+    "./bgp2vec/bgp2vec_asn_embeddings.txt",
+    # "./output/as_static_embedding_only_map.txt",
+    "./output/as_static_embedding_1127.txt", # 只有任务， 20 epoch, lr 1e-4
+    "./output/as_contextual_embedding_1127.txt"
 ]
 
 # -----------------------------
 # 2. 分类任务列表
 # -----------------------------
 categories = [
-    # 'continent',
-    # 'traffic_ratio',
-    # 'scope',
-    # 'network_type',
-    # 'policy',
-    # 'industry',
+    'continent',
+    'traffic_ratio',
+    'scope',
+    'network_type',
+    'policy',
+    'industry',
     'as_relation'
 ]
 
@@ -251,7 +279,7 @@ for emb_path in embedding_files:
             ds = ASCategoryDataset(
                 './node_features.csv',
                 category=cat,
-                min_count=500,
+                min_count=100,
                 to_merge=True,
                 embedding_loader=emb_loader,
                 filter_asns=all_as_set
@@ -267,7 +295,7 @@ for emb_path in embedding_files:
             single_type=False if cat == 'as_relation' else True
         )
 
-        pipeline.train(epochs=50)
+        pipeline.train(epochs=20)
 
         _, report, report_dict = pipeline.evaluate(split='test')
 

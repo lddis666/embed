@@ -22,9 +22,9 @@ class Config:
 
     # 模型尺寸
     d_model = 128        # embedding 维度
-    num_layers = 4       # Transformer 层数
+    num_layers = 2       # Transformer 层数
     num_heads = 4        # Multi-head attention 头数
-    d_ff = 512           # Transformer 内部 FFN 维度
+    d_ff = 256           # Transformer 内部 FFN 维度
     dropout = 0.1
 
     # 特征维度相关（会在读 feat.txt 时自动确定）
@@ -33,13 +33,13 @@ class Config:
 
     # 路径处理
     max_seq_len = 32
-    mask_prob = 0.15     # MAP/MFR 的 mask 比例
+    mask_prob = 0.3     # MAP/MFR 的 mask 比例
 
     # 训练相关
-    batch_size = 128
-    num_epochs = 15
-    learning_rate = 1e-3
-    weight_decay = 1e-2
+    batch_size = 512
+    num_epochs = 20
+    learning_rate = 3e-4
+    weight_decay = 1e-3
     warmup_steps = 100
 
     # 多任务权重
@@ -49,7 +49,7 @@ class Config:
     # 其它
     seed = 42
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    save_name = "only_map"
+    save_name = "1127"
 
 
 cfg = Config()
@@ -232,12 +232,8 @@ def build_token_mapping(asn2idx: Dict[int, int]) -> Tuple[Dict[int, int], Dict[i
 
 class ASPathDataset(Dataset):
     """
-    用于 MAP + MFR + NSP 预训练的 Dataset。
-    每个样本是一对 (A, B)，对应 NSP：
-    - 50% 概率是正样本：A,B 来自同一条路径的切割
-    - 50% 概率是负样本：B 来自另一条路径 / 打乱
-
-    同时在 A,B 上做 token-level 的 mask（MAP + MFR）。
+    用于 MAP + MFR 预训练的 Dataset。
+    在 AS PATH 上做 token-level 的 mask（MAP + MFR）。
     """
 
     def __init__(self,
@@ -419,7 +415,7 @@ class ASBertModel(nn.Module):
     - segment embedding
     - 特征 MLP + gate
     - Transformer encoder
-    - 三个 heads: MAP(vocab), MFR(feature), NSP(binary)
+    - 两个 heads: MAP(vocab), MFR(feature)
     """
 
     def __init__(self,
@@ -598,8 +594,10 @@ class ASBertModel(nn.Module):
 
 
 
-            total_loss = (cfg.lambda_map * map_loss
-                          + cfg.lambda_mfr * mfr_loss)
+            # total_loss = (cfg.lambda_map * map_loss
+            #               + cfg.lambda_mfr * mfr_loss)
+
+            total_loss = map_loss
 
 
 
@@ -663,7 +661,6 @@ def build_contextual_embeddings(model: ASBertModel,
                 map_labels=None,
                 mfr_targets=None,
                 mfr_mask=None,
-                nsp_label=None,
             )
             h = out["hidden_states"]  
 
@@ -822,7 +819,8 @@ if __name__ == "__main__":
 
     # 12. 导出上下文平均 embedding
     print("Building contextual embeddings...")
-    ctx_dataloader = DataLoader(dataset, batch_size=cfg.batch_size, shuffle=False, num_workers=0, for_inference = True)
+    dataset = ASPathDataset(paths_idx, asnIdx2tokenIdx, tokenIdx2asnIdx, cfg.max_seq_len, cfg.mask_prob, F_prime, miss_ratio, for_inference = True)
+    ctx_dataloader = DataLoader(dataset, batch_size=cfg.batch_size, shuffle=False, num_workers=0)
     emb_ctx = build_contextual_embeddings(model, ctx_dataloader, tokenIdx2asnIdx).cpu().numpy()
 
     ctx_emb_file = os.path.join(cfg.output_dir, f"as_contextual_embedding_{cfg.save_name}.txt")
