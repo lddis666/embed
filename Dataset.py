@@ -21,7 +21,7 @@ CATEGORIES = {
         "peeringDB_info_ratio_Mostly Inbound",
         "peeringDB_info_ratio_Mostly Outbound",
         # "peeringDB_info_ratio_None",
-        "peeringDB_info_ratio_Not Disclosed",
+        # "peeringDB_info_ratio_Not Disclosed",
     ],
     "scope": [
         "peeringDB_info_scope_Africa",
@@ -32,7 +32,7 @@ CATEGORIES = {
         "peeringDB_info_scope_Middle East",
         # "peeringDB_info_scope_None",
         "peeringDB_info_scope_North America",
-        "peeringDB_info_scope_Not Disclosed",
+        # "peeringDB_info_scope_Not Disclosed",
         "peeringDB_info_scope_Regional",
         "peeringDB_info_scope_South America",
     ],
@@ -46,7 +46,7 @@ CATEGORIES = {
         "peeringDB_info_type_Network Services",
         "peeringDB_info_type_Non-Profit",
         # "peeringDB_info_type_None",
-        "peeringDB_info_type_Not Disclosed",
+        # "peeringDB_info_type_Not Disclosed",
         "peeringDB_info_type_Route Collector",
         "peeringDB_info_type_Route Server",
     ],
@@ -388,7 +388,7 @@ class ASEmbeddingLoader:
 # # 假设你的txt文件名为 "as_embedding.txt"
 # loader = ASEmbeddingLoader("/Users/ldd/Desktop/embed/dataset/node2vec-embeddings16-10-100.txt", device="cpu")
 # asn = 3356
-# emb = loader.get_embedding(asn)   # 得到该AS的16维向量
+# emb = loader.get_embedding(asn)   # 得到该AS的向量
 
 # batch_emb = loader.get_batch([3356, 6939, 1299])  # (3, 16) tensor
 # print(batch_emb)

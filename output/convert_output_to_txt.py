@@ -1,7 +1,7 @@
 import csv
 
 input_file = "/mlx_devbox/users/liurundong.991/playground/embed/output/as_static_embedding.tsv"      # 你的输入文件
-output_file = "/mlx_devbox/users/liurundong.991/playground/embed/output/as_static_embedding.txt"  # 输出文件
+output_file = "/mlx_devbox/users/liurundong.991/playground/embed/output/as_static_embedding.txts"  # 输出文件
 
 with open(input_file, "r") as fin, open(output_file, "w", newline="") as fout:
     writer = csv.writer(fout)

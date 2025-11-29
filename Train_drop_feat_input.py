@@ -37,19 +37,19 @@ class Config:
 
     # 训练相关
     batch_size = 512
-    num_epochs = 20
+    num_epochs = 60
     learning_rate = 3e-4
     weight_decay = 1e-3
     warmup_steps = 100
 
     # 多任务权重
     lambda_map = 2.0
-    lambda_mfr = 1.0
+    lambda_mfr = 8.0
 
     # 其它
     seed = 42
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    save_name = "1127"
+    save_name = "1129-map-mfr-without-feat"
 
 
 cfg = Config()
@@ -587,10 +587,10 @@ class ASBertModel(nn.Module):
 
 
 
-            # total_loss = (cfg.lambda_map * map_loss
-            #               + cfg.lambda_mfr * mfr_loss)
+            total_loss = (cfg.lambda_map * map_loss
+                          + cfg.lambda_mfr * mfr_loss)
 
-            total_loss = map_loss
+            # total_loss = map_loss
 
 
 

@@ -65,6 +65,9 @@ class ASClassificationPipeline:
         self.val_loader = DataLoader(self.val_ds, batch_size=batch_size)
         self.test_loader = DataLoader(self.test_ds, batch_size=batch_size)
 
+        self.best_val_acc = -1.0
+        self.best_state_dict = None
+
 
         # 统计类别样本数
         label_counts = np.zeros(len(ds.get_label_map()))
@@ -89,8 +92,8 @@ class ASClassificationPipeline:
             self.model = ASClassifier(embedding_dim, num_classes).to(self.device)
         else:
             self.model = ToRClassifier(embedding_dim, num_classes).to(self.device)
-        # self.criterion = nn.CrossEntropyLoss(weight=class_weights)
-        self.criterion = FocalLoss(alpha=class_weights, gamma=2.0, reduction='mean')
+        self.criterion = nn.CrossEntropyLoss(weight=class_weights)
+        # self.criterion = FocalLoss(alpha=class_weights, gamma=2.0, reduction='mean')
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
         self.label_map = ds.get_label_map()  # 标签编号到类别名映射
 
@@ -99,6 +102,14 @@ class ASClassificationPipeline:
         asn_list = asn_batch.cpu().tolist()
         emb_tensor = self.emb_loader.get_batch(asn_list).to(self.device)  # shape (B, D)
         return emb_tensor
+    
+    def load_best_model(self):
+        """将训练过程中在验证集上表现最好的模型权重加载回 model。"""
+        if self.best_state_dict is None:
+            raise ValueError("Best model state_dict is None. 请先调用 train，并确保有至少一个 epoch 的验证结果。")
+        self.model.load_state_dict(self.best_state_dict)
+        self.model.to(self.device)
+        
 
     def train(self, epochs=10, print_interval=1):
         print(len(self.train_loader))
@@ -115,9 +126,27 @@ class ASClassificationPipeline:
                 loss.backward()
                 self.optimizer.step()
                 losses.append(loss.item())
-            if epoch % print_interval == 0:
-                val_acc = self.evaluate(split='val')[0]
-                print(f'Epoch {epoch}, Loss={np.mean(losses):.4f}, Val accuracy={val_acc:.4f}')
+
+                # 每个 epoch 之后在验证集上评估一次
+                val_acc, _, val_report_dict = self.evaluate(split='val')
+                # 如果想用 macro F1 做标准，可以这样得到：
+                # val_macro_f1 = val_report_dict['macro avg']['f1-score']
+
+                # 以 val_acc 作为最佳模型标准
+                if val_acc > self.best_val_acc:
+                    self.best_val_acc = val_acc
+                    # 只保存权重即可
+                    self.best_state_dict = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
+                    # 如果希望同步存盘，可以再写一行：
+                    # torch.save(self.best_state_dict, 'best_model.pt')
+
+                if epoch % print_interval == 0:
+                    print(f'Epoch {epoch}, Loss={np.mean(losses):.4f}, Val accuracy={val_acc:.4f}, Best Val acc={self.best_val_acc:.4f}')
+
+
+            # if epoch % print_interval == 0:
+            #     val_acc = self.evaluate(split='val')[0]
+            #     print(f'Epoch {epoch}, Loss={np.mean(losses):.4f}, Val accuracy={val_acc:.4f}')
 
     def evaluate(self, split='test'):
         self.model.eval()
@@ -177,11 +206,19 @@ embedding_files = [
     # "./output/as_contextual_embedding.txt",
     # "./output/as_static_embedding.txt", 
     # "./dataset/beam.txt",
-    "./output/as_contextual_embedding_only_map.txt",
-    "./bgp2vec/bgp2vec_asn_embeddings.txt",
+    # "./output/as_contextual_embedding_only_map.txt",
+    # "./bgp2vec/bgp2vec_asn_embeddings.txt",
     # "./output/as_static_embedding_only_map.txt",
-    "./output/as_static_embedding_1127.txt", # 只有任务， 20 epoch, lr 1e-4
-    "./output/as_contextual_embedding_1127.txt"
+    # "./output/as_static_embedding_1127.txt", # 只有任务， 20 epoch, lr 1e-4
+    # "./output/as_contextual_embedding_1127.txt",
+    # "./output/as_contextual_embedding_1128-map-mfr-without-feat.txt",
+    # "./output/as_contextual_embedding_1128-only-map-without-feat.txt",
+    # "./output/as_contextual_embedding_1128-map-mfr-with-feat.txt"
+    "./output/as_contextual_embedding_1129-map-mfr-with-feat.txt",
+    "./output/as_contextual_embedding_1129-map-mfr-without-feat.txt",
+    "./output/as_contextual_embedding_1129-map-with-feat.txt",
+    "./output/as_contextual_embedding_1129-map-without-feat.txt",
+    
 ]
 
 # -----------------------------
@@ -295,9 +332,14 @@ for emb_path in embedding_files:
             single_type=False if cat == 'as_relation' else True
         )
 
-        pipeline.train(epochs=20)
+        pipeline.train(epochs=20, print_interval=1)
+
+        # 加载验证集表现最好的模型
+        pipeline.load_best_model()
 
         _, report, report_dict = pipeline.evaluate(split='test')
+
+
 
 
         
