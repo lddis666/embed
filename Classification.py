@@ -1,14 +1,111 @@
 # -*- coding: utf-8 -*-
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, random_split, WeightedRandomSampler
 from sklearn.metrics import accuracy_score
 import numpy as np
 from torch.utils.data import DataLoader
 from sklearn.metrics import classification_report
-from Dataset import ASCategoryDataset, ASEmbeddingLoader, ASRelationDataset
+from Dataset import ASCategoryDataset, ASEmbeddingLoader, ASRelationDataset, LinkPredictionDataset
 from Model import ASClassifier, ToRClassifier
 import re
+import random
+from collections import defaultdict
+
+def split_train_valid_test_indices(
+    labels,
+    train_ratio=0.7,
+    valid_ratio=0.15,
+    test_ratio=0.15,
+    seed=42
+):
+    """
+    按类别分层划分 train/valid/test，且互不重叠。
+    
+    参数:
+      labels: 长度为 N 的一维列表/数组，对应 dataset.labels
+      train_ratio, valid_ratio, test_ratio: 三个比例之和应约等于 1
+      seed: 随机种子
+    
+    返回:
+      train_indices, valid_indices, test_indices: 三个索引列表
+    """
+    assert abs(train_ratio + valid_ratio + test_ratio - 1.0) < 1e-6
+
+    random.seed(seed)
+    class_to_indices = defaultdict(list)
+    for idx, y in enumerate(labels):
+        class_to_indices[y].append(idx)
+
+    train_indices, valid_indices, test_indices = [], [], []
+
+    for c, idxs in class_to_indices.items():
+        idxs = idxs[:]           # 复制一份
+        random.shuffle(idxs)     # 类内打乱
+        
+        n = len(idxs)
+        n_train = int(round(n * train_ratio))
+        n_valid = int(round(n * valid_ratio))
+        # 剩下全部给 test
+        n_test = n - n_train - n_valid
+        
+        c_train = idxs[:n_train]
+        c_valid = idxs[n_train:n_train + n_valid]
+        c_test  = idxs[n_train + n_valid:]
+        
+        train_indices.extend(c_train)
+        valid_indices.extend(c_valid)
+        test_indices.extend(c_test)
+
+    # 整体再打乱一下
+    random.shuffle(train_indices)
+    random.shuffle(valid_indices)
+    random.shuffle(test_indices)
+
+    return train_indices, valid_indices, test_indices
+
+def make_balanced_subset_from_indices(dataset, base_indices, frac=0.8, min_per_class=1, seed=42):
+    """
+    在给定的 base_indices（例如 train_indices）上做平衡下采样。
+    
+    参数:
+      dataset: ASCategoryDataset 实例
+      base_indices: 要在其内部进行下采样的一组索引（如 train_indices）
+      frac: 以该集合内最小类别样本数的 frac 倍作为每类目标数
+      min_per_class: 每类最少保留样本数
+      seed: 随机种子
+    
+    返回:
+      balanced_indices: 新的、平衡后的索引（都在 base_indices 里）
+      per_class_n: dict，记录每个类别采样多少
+    """
+    random.seed(seed)
+    labels = dataset.labels
+
+    # 1. 只看 base_indices 中的样本，按类收集索引
+    class_to_indices = defaultdict(list)
+    for idx in base_indices:
+        y = labels[idx]
+        class_to_indices[y].append(idx)
+
+    # 2. 计算该子集内最小类别大小
+    class_sizes = {c: len(idxs) for c, idxs in class_to_indices.items()}
+    min_size = min(class_sizes.values())
+
+    target_per_class = max(int(round(min_size * frac)), min_per_class)
+
+    balanced_indices = []
+    per_class_n = {}
+    for c, idxs in class_to_indices.items():
+        if len(idxs) <= target_per_class:
+            chosen = idxs
+        else:
+            chosen = random.sample(idxs, target_per_class)
+        balanced_indices.extend(chosen)
+        per_class_n[c] = len(chosen)
+
+    random.shuffle(balanced_indices)
+    return balanced_indices, per_class_n
 
 
     
@@ -40,7 +137,7 @@ class ASClassificationPipeline:
         val_ratio=0.1, 
         test_ratio=0.1, 
         embedding_dim=16, 
-        lr=5e-3,
+        lr=5e-4,
         device=None,
         seed=42,
         single_type = True, 
@@ -56,12 +153,76 @@ class ASClassificationPipeline:
         torch.manual_seed(seed)
         numpy_rng = np.random.default_rng(seed)
         # dataset split
-        n_total = len(ds)
-        n_test = int(n_total * test_ratio)
-        n_val = int(n_total * val_ratio)
-        n_train = n_total - n_test - n_val
-        self.train_ds, self.val_ds, self.test_ds = random_split(ds, [n_train, n_val, n_test], generator=torch.Generator().manual_seed(seed))
+        # n_total = len(ds)
+        # n_test = int(n_total * test_ratio)
+        # n_val = int(n_total * val_ratio)
+        # n_train = n_total - n_test - n_val
+        # self.train_ds, self.val_ds, self.test_ds = random_split(ds, [n_train, n_val, n_test], generator=torch.Generator().manual_seed(seed))
+
+
+        labels = ds.labels   # 来自你的 ASCategoryDataset
+
+        train_indices, valid_indices, test_indices = split_train_valid_test_indices(
+            labels,
+            train_ratio = 1 - test_ratio - val_ratio,
+            valid_ratio = val_ratio,
+            test_ratio = test_ratio,
+            seed=42
+        )
+
+        # print(len(train_indices), len(valid_indices), len(test_indices))
+
+        # balanced_train_indices, per_class_n = make_balanced_subset_from_indices(
+        #     ds,
+        #     base_indices=train_indices,
+        #     frac=1,        # 使用最小类别样本数的 0.8
+        #     min_per_class=1,
+        #     seed=42
+        # )
+
+        # print("平衡后的各类样本数：", per_class_n)
+        # print("平衡后的训练集大小：", len(balanced_train_indices))
+
+        from torch.utils.data import Subset, DataLoader
+
+        self.train_ds = Subset(ds, train_indices)  
+        self.val_ds = Subset(ds, valid_indices)           
+        self.test_ds  = Subset(ds, test_indices)            
+
+
+        # # 先拿到原始数据集中每个 index 的 label（注意 random_split 会打乱索引）
+        # train_labels = []
+        # for idx in self.train_ds.indices:  # Subset.indices
+        #     _, label = self.ds[idx]
+        #     train_labels.append(label)
+        # train_labels = np.array(train_labels)
+
+        # # 用和 class_weights 一致的逻辑构造 sample_weights
+        # label_counts = np.bincount(train_labels, minlength=len(ds.get_label_map()))
+        # freq = label_counts / label_counts.sum()
+        # inv_freq = 1.0 / (freq + 1e-6)
+        # weights_per_class = np.sqrt(inv_freq)
+        # weights_per_class = weights_per_class / weights_per_class.mean()
+
+        # sample_weights = weights_per_class[train_labels]  # 每个样本的权重
+        # sample_weights = torch.tensor(sample_weights, dtype=torch.float)
+
+        # sampler = WeightedRandomSampler(
+        #     weights=sample_weights,
+        #     num_samples=len(sample_weights),  # 每个 epoch 采样与训练集大小相同
+        #     replacement=True
+        # )
+
+        # self.train_loader = DataLoader(
+        #     self.train_ds,
+        #     batch_size=batch_size,
+        #     sampler=sampler,   # 注意：有 sampler 时就不要 shuffle=True
+        #     drop_last=False
+        # )
         self.train_loader = DataLoader(self.train_ds, batch_size=batch_size, shuffle=True)
+
+
+
         self.val_loader = DataLoader(self.val_ds, batch_size=batch_size)
         self.test_loader = DataLoader(self.test_ds, batch_size=batch_size)
 
@@ -73,6 +234,11 @@ class ASClassificationPipeline:
         label_counts = np.zeros(len(ds.get_label_map()))
         for _, label in self.ds:
             label_counts[label] += 1
+        # for循环分别打印每个类别的数量
+        for i, count in enumerate(label_counts):
+            print(f"类别 {i} 样本数: {count}")
+
+
 
         # # 计算加权交叉熵的权重，常用方式：inverse frequency
         # weights = 1.0 / (label_counts + 1e-6)
@@ -80,11 +246,24 @@ class ASClassificationPipeline:
 
         freq = label_counts / label_counts.sum()
         inv_freq = 1.0 / (freq + 1e-6)
-        weights = np.sqrt(inv_freq)  # 或 np.log(1 + inv_freq)
+        weights = np.log1p(1 + inv_freq) # 或 np.log(1 + inv_freq)
         weights = weights / weights.mean()
 
         class_weights = torch.tensor(weights, dtype=torch.float, device=self.device)
 
+
+        # freq = label_counts / label_counts.sum()
+        # weights = 1.0 / (freq + 1e-6)
+
+        # # 限制一个最大/最小，避免极端
+        # max_w = 10.0
+        # min_w = 0.1
+        # weights = np.clip(weights, min_w, max_w)
+
+        # # 可以不归一化，也可以简单归一化到均值 1
+        # weights = weights / weights.mean()
+
+        # class_weights = torch.tensor(weights, dtype=torch.float, device=self.device)
 
         # 网络结构
         num_classes = len(ds.get_label_map())
@@ -92,6 +271,7 @@ class ASClassificationPipeline:
             self.model = ASClassifier(embedding_dim, num_classes).to(self.device)
         else:
             self.model = ToRClassifier(embedding_dim, num_classes).to(self.device)
+        # self.criterion = nn.CrossEntropyLoss()
         self.criterion = nn.CrossEntropyLoss(weight=class_weights)
         # self.criterion = FocalLoss(alpha=class_weights, gamma=2.0, reduction='mean')
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
@@ -127,21 +307,25 @@ class ASClassificationPipeline:
                 self.optimizer.step()
                 losses.append(loss.item())
 
-                # 每个 epoch 之后在验证集上评估一次
-                val_acc, _, val_report_dict = self.evaluate(split='val')
+
                 # 如果想用 macro F1 做标准，可以这样得到：
                 # val_macro_f1 = val_report_dict['macro avg']['f1-score']
+
+
+                    # 如果希望同步存盘，可以再写一行：
+                    # torch.save(self.best_state_dict, 'best_model.pt')
+
+            if epoch % print_interval == 0:
+
+                # 每个 epoch 之后在验证集上评估一次
+                val_acc, _, val_report_dict = self.evaluate(split='val')
+                print(f'Epoch {epoch}, Loss={np.mean(losses):.4f}, Val accuracy={val_acc:.4f}, Best Val acc={self.best_val_acc:.4f}')
 
                 # 以 val_acc 作为最佳模型标准
                 if val_acc > self.best_val_acc:
                     self.best_val_acc = val_acc
                     # 只保存权重即可
                     self.best_state_dict = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
-                    # 如果希望同步存盘，可以再写一行：
-                    # torch.save(self.best_state_dict, 'best_model.pt')
-
-                if epoch % print_interval == 0:
-                    print(f'Epoch {epoch}, Loss={np.mean(losses):.4f}, Val accuracy={val_acc:.4f}, Best Val acc={self.best_val_acc:.4f}')
 
 
             # if epoch % print_interval == 0:
@@ -201,23 +385,31 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # 1. Embedding 列表
 # -----------------------------
 embedding_files = [
-    # "./dataset/bgp2vec-embeddings.txt",
-    # "./dataset/node2vec-embeddings16-10-100.txt",
-    # "./output/as_contextual_embedding.txt",
-    # "./output/as_static_embedding.txt", 
-    # "./dataset/beam.txt",
+    "./feature_embeddings.txt",
+    "./output/as_contextual_embedding_1201-map-mrf-with-feat.txt",
+    "./output/as_contextual_embedding_1201-map-mfr-without-feat.txt",
+    "./dataset/bgp2vec-embeddings.txt",
+    "./dataset/node2vec-embeddings16-10-100.txt",
+    "./output/as_contextual_embedding.txt",
+    "./output/as_static_embedding.txt", 
+    "./dataset/beam.txt",
     # "./output/as_contextual_embedding_only_map.txt",
-    # "./bgp2vec/bgp2vec_asn_embeddings.txt",
+    "./bgp2vec/bgp2vec_asn_embeddings.txt",
     # "./output/as_static_embedding_only_map.txt",
     # "./output/as_static_embedding_1127.txt", # 只有任务， 20 epoch, lr 1e-4
     # "./output/as_contextual_embedding_1127.txt",
     # "./output/as_contextual_embedding_1128-map-mfr-without-feat.txt",
     # "./output/as_contextual_embedding_1128-only-map-without-feat.txt",
     # "./output/as_contextual_embedding_1128-map-mfr-with-feat.txt"
+
+
+
     "./output/as_contextual_embedding_1129-map-mfr-with-feat.txt",
     "./output/as_contextual_embedding_1129-map-mfr-without-feat.txt",
     "./output/as_contextual_embedding_1129-map-with-feat.txt",
     "./output/as_contextual_embedding_1129-map-without-feat.txt",
+    "./output/as_contextual_embedding_1130-map-mfr-without-feat.txt",
+    "./output/as_contextual_embedding_1130-map-mrf-with-feat.txt"
     
 ]
 
@@ -225,13 +417,14 @@ embedding_files = [
 # 2. 分类任务列表
 # -----------------------------
 categories = [
-    'continent',
-    'traffic_ratio',
-    'scope',
-    'network_type',
-    'policy',
-    'industry',
-    'as_relation'
+    # 'continent',
+    # 'traffic_ratio',
+    # 'scope',
+    # 'network_type',
+    # 'policy',
+    # 'industry',
+    'as_relation',
+    # 'link_prediction',
 ]
 
 # ===========================================================
@@ -305,34 +498,58 @@ for emb_path in embedding_files:
 
         print(f"\n--- Category: {cat} ---")
 
-        if cat == 'as_relation':
+        if cat == 'as_relation' :
             ds = ASRelationDataset(
                 csv_path='./dataset/as_relations_onehot.txt',
-                relation_fields=("P2P", "P2C", "C2P"),
+                # relation_fields=("P2P", "P2C", "C2P"),
+                relation_fields=("P2P", "P2C"),
                 embedding_loader=emb_loader,  
                 filter_asns=all_as_set,
+            )
+        elif cat =='link_prediction':
+            ds = LinkPredictionDataset(
+                csv_path='./dataset/raw_edges.csv',
+                embedding_loader=emb_loader,  
+                filter_nodes=all_as_set,
+                num_pos_samples = 10000,
+                negative_ratio = 1.0,
+                undirected=False,
             )
         else:
             ds = ASCategoryDataset(
                 './node_features.csv',
                 category=cat,
-                min_count=100,
+                min_count=  0,
                 to_merge=True,
                 embedding_loader=emb_loader,
                 filter_asns=all_as_set
             )
+
+            print(f"--- Dataset: {cat} ---")
+            print(f"  Total ASNs: {len(ds)}")
+            print(f"  Label Map: {ds.get_label_map()}")
+
+            print("final_fields:", ds.final_fields)
+            print("label_map:", ds.get_label_map())
+            print("label_count:", ds.get_label_count())
+
+
+            # print("final_fields:", ds.final_fields)
+            # print("label_map:", ds.get_label_map())
+            # print("label_count:", ds.get_label_count())
+            # print("min label_count:", min(ds.get_label_count().values()))
 
         pipeline = ASClassificationPipeline(
             ds,
             emb_loader,
             batch_size=512,
             val_ratio=0.1,
-            test_ratio=0.1,
+            test_ratio=0.2,
             embedding_dim=embedding_dim,
-            single_type=False if cat == 'as_relation' else True
+            single_type=False if cat in ['as_relation', 'link_prediction'] else True
         )
 
-        pipeline.train(epochs=20, print_interval=1)
+        pipeline.train(epochs=30, print_interval=1)
 
         # 加载验证集表现最好的模型
         pipeline.load_best_model()

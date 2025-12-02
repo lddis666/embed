@@ -16,7 +16,7 @@ from torch.utils.data import Dataset, DataLoader
 
 class Config:
     # 文件路径
-    as_path_file = "filtered_paths.txt"      # 每行: "3356 6939 15169"
+    as_path_file = "filtered_paths_small.txt"      # 每行: "3356 6939 15169"
     feature_file = "feature_embeddings.txt"          # CSV: "ASN, emb1, emb2, ..., embK"
     output_dir = "output"
 
@@ -32,24 +32,24 @@ class Config:
     # F': 2K: 特征 + 缺失mask
 
     # 路径处理
-    max_seq_len = 32
-    mask_prob = 0.3     # MAP/MFR 的 mask 比例
+    max_seq_len = 16
+    mask_prob = 0.4     # MAP/MFR 的 mask 比例
 
     # 训练相关
     batch_size = 512
-    num_epochs = 60
+    num_epochs = 30
     learning_rate = 3e-4
-    weight_decay = 1e-3
+    weight_decay = 1e-4
     warmup_steps = 100
 
     # 多任务权重
     lambda_map = 2.0
-    lambda_mfr = 0.0
+    lambda_mfr = 100.0
 
     # 其它
     seed = 42
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    save_name = "1129-map-with-feat"
+    save_name = "1202-map-mrf-with-feat-1"
 
 
 cfg = Config()
