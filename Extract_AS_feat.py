@@ -18,12 +18,12 @@ def extract_embeddings(input_csv: str, output_csv: str):
     ]
 
     # 读取 CSV, 并将空值设为 -1
-    df = pd.read_csv(input_csv).fillna(-1)
+    df = pd.read_csv(input_csv).fillna(0)
 
     # 若字段不存在（CSV 中为空列），也自动补为 -1
     for col in fields:
         if col not in df.columns:
-            df[col] = -1
+            df[col] = 0
 
     # 仅取 ASN + 指定数值字段
     df_selected = df[["ASN"] + fields]
@@ -38,4 +38,4 @@ def extract_embeddings(input_csv: str, output_csv: str):
 
 
 # 调用示例
-extract_embeddings("/mlx_devbox/users/liurundong.991/playground/embed/node_features.csv", "feature_embeddings.csv")
+extract_embeddings("/mlx_devbox/users/liurundong.991/playground/embed/node_features.csv", "feature_embeddings_cls.csv")

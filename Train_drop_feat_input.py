@@ -37,19 +37,19 @@ class Config:
 
     # 训练相关
     batch_size = 512
-    num_epochs = 30
-    learning_rate = 1e-4
+    num_epochs = 50
+    learning_rate = 5e-4
     weight_decay = 1e-4
     warmup_steps = 100
 
     # 多任务权重
-    lambda_map = 2.0
-    lambda_mfr = 100.0
+    lambda_map = 1.0
+    lambda_mfr = 200.0
 
     # 其它
     seed = 42
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    save_name = "1202-map-mfr-without-feat-1"
+    save_name = "1203-map-mfr-without-feat-4"
 
 
 cfg = Config()
@@ -188,6 +188,7 @@ def build_feature_with_missing(feat_mat: np.ndarray):
     feat_processed[feat_processed == -1] = 0.0
     F_prime = np.concatenate([feat_processed, M], axis=1)
     miss_ratio = M.sum(axis=1) / float(K)
+
     return F_prime, M, miss_ratio
 
 
@@ -487,7 +488,8 @@ class ASBertModel(nn.Module):
         # g = self.gate(miss_r).unsqueeze(-1)     # (V, 1)
         # emb = E_id + g * e_feat
         emb = self.layer_norm(E_id)
-        return emb  # (V, d_model)
+        # return emb  # (V, d_model)
+        return E_id
 
     def forward(self,
                 input_ids,
@@ -508,10 +510,12 @@ class ASBertModel(nn.Module):
         # 基础 embedding: token + pos + seg
         pos_ids = torch.arange(L, device=device).unsqueeze(0).expand(B, L)
         tok_emb = self.token_embedding(input_ids)
-        pos_emb = self.pos_embedding(pos_ids)
-        seg_emb = self.seg_embedding(token_type_ids)
+        # pos_emb = self.pos_embedding(pos_ids)
+        # seg_emb = self.seg_embedding(token_type_ids)
 
-        x = tok_emb + pos_emb + seg_emb
+        # x = tok_emb + pos_emb + seg_emb
+        x = tok_emb
+        
 
         # 加入特征 embedding (对每个位置)
         # 对于非 AS token (特殊 token、PAD)，不加特征

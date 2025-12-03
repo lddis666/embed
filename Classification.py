@@ -137,7 +137,7 @@ class ASClassificationPipeline:
         val_ratio=0.1, 
         test_ratio=0.1, 
         embedding_dim=16, 
-        lr=5e-4,
+        lr=1e-4,
         device=None,
         seed=42,
         single_type = True, 
@@ -380,18 +380,19 @@ class ASClassificationPipeline:
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+min_count = 800
 
 # -----------------------------
 # 1. Embedding 列表
 # -----------------------------
 embedding_files = [
-    "./feature_embeddings.txt",
-    "./output/as_contextual_embedding_1201-map-mrf-with-feat.txt",
-    "./output/as_contextual_embedding_1201-map-mfr-without-feat.txt",
+    "./feature_embeddings_cls.csv",
+    # "./output/as_contextual_embedding_1201-map-mrf-with-feat.txt",
+    # "./output/as_contextual_embedding_1201-map-mfr-without-feat.txt",
     "./dataset/bgp2vec-embeddings.txt",
-    "./dataset/node2vec-embeddings16-10-100.txt",
-    "./output/as_contextual_embedding.txt",
-    "./output/as_static_embedding.txt", 
+    # "./dataset/node2vec-embeddings16-10-100.txt",
+    # "./output/as_contextual_embedding.txt",
+    # "./output/as_static_embedding.txt", 
     "./dataset/beam.txt",
     # "./output/as_contextual_embedding_only_map.txt",
     "./bgp2vec/bgp2vec_asn_embeddings.txt",
@@ -404,12 +405,59 @@ embedding_files = [
 
 
 
-    "./output/as_contextual_embedding_1129-map-mfr-with-feat.txt",
-    "./output/as_contextual_embedding_1129-map-mfr-without-feat.txt",
-    "./output/as_contextual_embedding_1129-map-with-feat.txt",
-    "./output/as_contextual_embedding_1129-map-without-feat.txt",
-    "./output/as_contextual_embedding_1130-map-mfr-without-feat.txt",
-    "./output/as_contextual_embedding_1130-map-mrf-with-feat.txt"
+    # "./output/as_contextual_embedding_1129-map-mfr-with-feat.txt",
+    # "./output/as_contextual_embedding_1129-map-mfr-without-feat.txt",
+    # "./output/as_contextual_embedding_1129-map-with-feat.txt",
+    # "./output/as_contextual_embedding_1129-map-without-feat.txt",
+    # "./output/as_contextual_embedding_1130-map-mfr-without-feat.txt",
+    # "./output/as_contextual_embedding_1130-map-mrf-with-feat.txt",
+
+    # "./output/as_contextual_embedding_1202-map-mfr-without-feat-1.txt",
+    # "./output/as_contextual_embedding_1202-map-mrf-with-feat-1.txt",
+
+    # "./output/as_static_embedding_1202-map-mfr-without-feat-1.txt",
+    # "./output/as_static_embedding_1202-map-mrf-with-feat-1.txt",
+
+
+    # "./output/as_contextual_embedding_1202-map-mfr-without-feat-2.txt",
+    # "./output/as_contextual_embedding_1202-map-mrf-with-feat-2.txt",
+
+    # "./output/as_static_embedding_1202-map-mfr-without-feat-2.txt",
+    # "./output/as_static_embedding_1202-map-mrf-with-feat-2.txt",
+
+    # "./output/as_contextual_embedding_1202-map-mfr-without-feat-3.txt",
+    # "./output/as_contextual_embedding_1202-map-mrf-with-feat-3.txt",
+
+    # "./output/as_static_embedding_1202-map-mfr-without-feat-3.txt",
+    # "./output/as_static_embedding_1202-map-mrf-with-feat-3.txt",
+
+
+
+
+
+    # "./output/as_contextual_embedding_1202-map-without-feat-3.txt",
+    # "./output/as_contextual_embedding_1202-map-with-feat-3.txt",
+    # "./output/as_static_embedding_1202-map-without-feat-3.txt",
+    # "./output/as_static_embedding_1202-map-with-feat-3.txt",
+
+
+    # "./output/as_contextual_embedding_1203-map-mfr-without-feat-3.txt",
+    # "./output/as_contextual_embedding_1203-map-mrf-with-feat-3.txt",
+
+    # "./output/as_static_embedding_1203-map-mfr-without-feat-3.txt",
+    # "./output/as_static_embedding_1203-map-mrf-with-feat-3.txt",
+
+    "./output/as_contextual_embedding_1203-map-mrf-with-feat-4.txt",
+    "./output/as_contextual_embedding_1203-map-mfr-without-feat-4.txt",
+
+    "./output/as_static_embedding_1203-map-mrf-with-feat-4.txt",
+    "./output/as_static_embedding_1203-map-mfr-without-feat-4.txt",
+
+    "./output/as_static_embedding_1203-map-mfr-no-missing-indicator.txt",
+    "./output/as_contextual_embedding_1203-map-mfr-no-missing-indicator.txt"
+
+
+
     
 ]
 
@@ -417,13 +465,13 @@ embedding_files = [
 # 2. 分类任务列表
 # -----------------------------
 categories = [
-    # 'continent',
-    # 'traffic_ratio',
-    # 'scope',
-    # 'network_type',
-    # 'policy',
-    # 'industry',
-    'as_relation',
+    'continent',
+    'traffic_ratio',
+    'scope',
+    'network_type',
+    'policy',
+    'industry',
+    # 'as_relation',
     # 'link_prediction',
 ]
 
@@ -501,8 +549,8 @@ for emb_path in embedding_files:
         if cat == 'as_relation' :
             ds = ASRelationDataset(
                 csv_path='./dataset/as_relations_onehot.txt',
-                # relation_fields=("P2P", "P2C", "C2P"),
-                relation_fields=("P2P", "P2C"),
+                relation_fields=("P2P", "P2C", "C2P"),
+                # relation_fields=("P2P", "P2C"),
                 embedding_loader=emb_loader,  
                 filter_asns=all_as_set,
             )
@@ -519,7 +567,7 @@ for emb_path in embedding_files:
             ds = ASCategoryDataset(
                 './node_features.csv',
                 category=cat,
-                min_count=  0,
+                min_count=  min_count,
                 to_merge=True,
                 embedding_loader=emb_loader,
                 filter_asns=all_as_set
