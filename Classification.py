@@ -137,7 +137,7 @@ class ASClassificationPipeline:
         val_ratio=0.1, 
         test_ratio=0.1, 
         embedding_dim=16, 
-        lr=1e-4,
+        lr=5e-4,
         device=None,
         seed=42,
         single_type = True, 
@@ -227,6 +227,7 @@ class ASClassificationPipeline:
         self.test_loader = DataLoader(self.test_ds, batch_size=batch_size)
 
         self.best_val_acc = -1.0
+        self.best_weighted_f1 = -1.0
         self.best_state_dict = None
 
 
@@ -244,26 +245,26 @@ class ASClassificationPipeline:
         # weights = 1.0 / (label_counts + 1e-6)
         # weights = weights / weights.sum() * len(weights)  # 归一化使平均权重为1
 
-        freq = label_counts / label_counts.sum()
-        inv_freq = 1.0 / (freq + 1e-6)
-        weights = np.log1p(1 + inv_freq) # 或 np.log(1 + inv_freq)
-        weights = weights / weights.mean()
-
-        class_weights = torch.tensor(weights, dtype=torch.float, device=self.device)
-
-
         # freq = label_counts / label_counts.sum()
-        # weights = 1.0 / (freq + 1e-6)
-
-        # # 限制一个最大/最小，避免极端
-        # max_w = 10.0
-        # min_w = 0.1
-        # weights = np.clip(weights, min_w, max_w)
-
-        # # 可以不归一化，也可以简单归一化到均值 1
+        # inv_freq = 1.0 / (freq + 1e-6)
+        # weights = np.log1p(1 + inv_freq) # 或 np.log(1 + inv_freq)
         # weights = weights / weights.mean()
 
         # class_weights = torch.tensor(weights, dtype=torch.float, device=self.device)
+
+
+        freq = label_counts / label_counts.sum()
+        weights = 1.0 / (freq + 1e-6)
+
+        # 限制一个最大/最小，避免极端
+        max_w = 10.0
+        min_w = 0.1
+        weights = np.clip(weights, min_w, max_w)
+
+        # 可以不归一化，也可以简单归一化到均值 1
+        weights = weights / weights.mean()
+
+        class_weights = torch.tensor(weights, dtype=torch.float, device=self.device)
 
         # 网络结构
         num_classes = len(ds.get_label_map())
@@ -380,17 +381,18 @@ class ASClassificationPipeline:
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-min_count = 800
+min_count = 300
 
 # -----------------------------
 # 1. Embedding 列表
 # -----------------------------
 embedding_files = [
     "./feature_embeddings_cls.csv",
+    "./deepwalk/deepwalk_embeddings.txt",
     # "./output/as_contextual_embedding_1201-map-mrf-with-feat.txt",
     # "./output/as_contextual_embedding_1201-map-mfr-without-feat.txt",
-    "./dataset/bgp2vec-embeddings.txt",
-    # "./dataset/node2vec-embeddings16-10-100.txt",
+    # "./dataset/bgp2vec-embeddings.txt",
+    "./dataset/node2vec-embeddings16-10-100.txt",
     # "./output/as_contextual_embedding.txt",
     # "./output/as_static_embedding.txt", 
     "./dataset/beam.txt",
@@ -447,14 +449,20 @@ embedding_files = [
     # "./output/as_static_embedding_1203-map-mfr-without-feat-3.txt",
     # "./output/as_static_embedding_1203-map-mrf-with-feat-3.txt",
 
-    "./output/as_contextual_embedding_1203-map-mrf-with-feat-4.txt",
-    "./output/as_contextual_embedding_1203-map-mfr-without-feat-4.txt",
+    # "./output/as_contextual_embedding_1203-map-mrf-with-feat-4.txt",
+    # "./output/as_contextual_embedding_1203-map-mfr-without-feat-4.txt",
 
-    "./output/as_static_embedding_1203-map-mrf-with-feat-4.txt",
-    "./output/as_static_embedding_1203-map-mfr-without-feat-4.txt",
+    # "./output/as_static_embedding_1203-map-mrf-with-feat-4.txt",
+    # "./output/as_static_embedding_1203-map-mfr-without-feat-4.txt",
 
-    "./output/as_static_embedding_1203-map-mfr-no-missing-indicator.txt",
-    "./output/as_contextual_embedding_1203-map-mfr-no-missing-indicator.txt"
+    # "./output/as_static_embedding_1203-map-mfr-no-missing-indicator.txt",
+    # "./output/as_contextual_embedding_1203-map-mfr-no-missing-indicator.txt",
+
+    "./output/as_contextual_embedding_1203-map-mfr-no-missing-indicator-200_lambda-50_epoch.txt",
+    # "./output/as_static_embedding_1203-map-mfr-no-missing-indicator-200_lambda-50_epoch.txt",
+    # "./output/as_contextual_embedding_1203-map-mfr-no-missing-indicator-4_lambda-40_epoch.txt",
+    # "./output/as_static_embedding_1203-map-mfr-no-missing-indicator-4_lambda-40_epoch.txt"
+    # "./output/as_contextual_embedding_1203-merge.txt"
 
 
 
@@ -560,7 +568,7 @@ for emb_path in embedding_files:
                 embedding_loader=emb_loader,  
                 filter_nodes=all_as_set,
                 num_pos_samples = 10000,
-                negative_ratio = 1.0,
+                negative_ratio = 2.0,
                 undirected=False,
             )
         else:
@@ -592,7 +600,7 @@ for emb_path in embedding_files:
             emb_loader,
             batch_size=512,
             val_ratio=0.1,
-            test_ratio=0.2,
+            test_ratio=0.1,
             embedding_dim=embedding_dim,
             single_type=False if cat in ['as_relation', 'link_prediction'] else True
         )

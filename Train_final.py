@@ -33,19 +33,19 @@ class Config:
 
     # 训练相关
     batch_size = 1028
-    num_epochs = 50
-    learning_rate = 1e-3
+    num_epochs = 40
+    learning_rate = 5e-4
     weight_decay = 1e-4
     warmup_steps = 100
 
     # 多任务权重
     lambda_map = 1.0
-    lambda_mfr = 200.0
+    lambda_mfr = 2.0
 
     # 其它
     seed = 42
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    save_name = "1203-map-mfr-no-missing-indicator-200_lambda-50_epoch"
+    save_name = "1203-map-mfr-no-missing-indicator-4_lambda-40_epoch"
 
 
 cfg = Config()
