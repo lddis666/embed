@@ -1,0 +1,173 @@
+百分之10:
+
+Embedding: ./deepwalk/deepwalk_embeddings.txt
+  as_relation    : acc=0.8011, macro_f1=0.6492, weighted_f1=0.8197
+  link_prediction: acc=0.8383, macro_f1=0.8066, weighted_f1=0.8327
+
+Embedding: ./deepwalk/node2vec_embeddings.txt
+  as_relation    : acc=0.7981, macro_f1=0.6196, weighted_f1=0.8130
+  link_prediction: acc=0.8395, macro_f1=0.8057, weighted_f1=0.8328
+
+Embedding: ./dataset/beam.txt
+  as_relation    : acc=0.8563, macro_f1=0.7731, weighted_f1=0.8658
+  link_prediction: acc=0.8235, macro_f1=0.8046, weighted_f1=0.8249
+
+Embedding: ./bgp2vec/bgp2vec_asn_embeddings.txt
+  as_relation    : acc=0.7923, macro_f1=0.6919, weighted_f1=0.8116
+  link_prediction: acc=0.7392, macro_f1=0.7310, weighted_f1=0.7466
+
+Embedding: ./output/as_contextual_embedding_1203-map-mfr-no-missing-indicator-4_lambda-40_epoch.txt
+  as_relation    : acc=0.8729, macro_f1=0.7869, weighted_f1=0.8809
+  link_prediction: acc=0.8262, macro_f1=0.8099, weighted_f1=0.8284
+
+
+百分之20:
+
+
+
+Embedding: ./deepwalk/deepwalk_embeddings.txt
+  as_relation    : acc=0.8313, macro_f1=0.6941, weighted_f1=0.8455
+  link_prediction: acc=0.8449, macro_f1=0.8199, weighted_f1=0.8423
+
+Embedding: ./deepwalk/node2vec_embeddings.txt
+  as_relation    : acc=0.8375, macro_f1=0.7010, weighted_f1=0.8507
+  link_prediction: acc=0.8494, macro_f1=0.8233, weighted_f1=0.8459
+
+Embedding: ./dataset/beam.txt
+  as_relation    : acc=0.8748, macro_f1=0.7972, weighted_f1=0.8823
+  link_prediction: acc=0.8399, macro_f1=0.8289, weighted_f1=0.8433
+
+Embedding: ./bgp2vec/bgp2vec_asn_embeddings.txt
+  as_relation    : acc=0.8832, macro_f1=0.7990, weighted_f1=0.8903
+  link_prediction: acc=0.7852, macro_f1=0.7721, weighted_f1=0.7904
+
+Embedding: ./output/as_contextual_embedding_1203-map-mfr-no-missing-indicator-4_lambda-40_epoch.txt
+  as_relation    : acc=0.9104, macro_f1=0.8389, weighted_f1=0.9145
+  link_prediction: acc=0.8459, macro_f1=0.8321, weighted_f1=0.8481
+
+百分之30:
+Embedding: ./deepwalk/deepwalk_embeddings.txt
+  as_relation    : acc=0.8695, macro_f1=0.7538, weighted_f1=0.8781
+  link_prediction: acc=0.8438, macro_f1=0.8177, weighted_f1=0.8407
+
+Embedding: ./deepwalk/node2vec_embeddings.txt
+  as_relation    : acc=0.8725, macro_f1=0.7569, weighted_f1=0.8808
+  link_prediction: acc=0.8479, macro_f1=0.8231, weighted_f1=0.8452
+
+Embedding: ./dataset/beam.txt
+  as_relation    : acc=0.8826, macro_f1=0.8091, weighted_f1=0.8895
+  link_prediction: acc=0.8502, macro_f1=0.8411, weighted_f1=0.8538
+
+Embedding: ./bgp2vec/bgp2vec_asn_embeddings.txt
+  as_relation    : acc=0.9056, macro_f1=0.8332, weighted_f1=0.9108
+  link_prediction: acc=0.8115, macro_f1=0.7927, weighted_f1=0.8135
+
+Embedding: ./output/as_contextual_embedding_1203-map-mfr-no-missing-indicator-4_lambda-40_epoch.txt
+  as_relation    : acc=0.9143, macro_f1=0.8459, weighted_f1=0.9184
+  link_prediction: acc=0.8692, macro_f1=0.8568, weighted_f1=0.8709
+
+百分之40:
+Embedding: ./deepwalk/deepwalk_embeddings.txt
+  as_relation    : acc=0.8881, macro_f1=0.7868, weighted_f1=0.8947
+  link_prediction: acc=0.8453, macro_f1=0.8210, weighted_f1=0.8430
+
+Embedding: ./deepwalk/node2vec_embeddings.txt
+  as_relation    : acc=0.8860, macro_f1=0.7861, weighted_f1=0.8930
+  link_prediction: acc=0.8491, macro_f1=0.8231, weighted_f1=0.8457
+
+Embedding: ./dataset/beam.txt
+  as_relation    : acc=0.8824, macro_f1=0.8096, weighted_f1=0.8896
+  link_prediction: acc=0.8563, macro_f1=0.8471, weighted_f1=0.8596
+
+Embedding: ./bgp2vec/bgp2vec_asn_embeddings.txt
+  as_relation    : acc=0.9150, macro_f1=0.8479, weighted_f1=0.9192
+  link_prediction: acc=0.8229, macro_f1=0.8040, weighted_f1=0.8243
+
+Embedding: ./output/as_contextual_embedding_1203-map-mfr-no-missing-indicator-4_lambda-40_epoch.txt
+  as_relation    : acc=0.9199, macro_f1=0.8550, weighted_f1=0.9235
+  link_prediction: acc=0.8758, macro_f1=0.8641, weighted_f1=0.8774
+
+百分之50:
+Embedding: ./deepwalk/deepwalk_embeddings.txt
+  as_relation    : acc=0.8944, macro_f1=0.7977, weighted_f1=0.9002
+  link_prediction: acc=0.8553, macro_f1=0.8401, weighted_f1=0.8565
+
+Embedding: ./deepwalk/node2vec_embeddings.txt
+  as_relation    : acc=0.8921, macro_f1=0.7956, weighted_f1=0.8982
+  link_prediction: acc=0.8574, macro_f1=0.8426, weighted_f1=0.8587
+
+Embedding: ./dataset/beam.txt
+  as_relation    : acc=0.8920, macro_f1=0.8218, weighted_f1=0.8980
+  link_prediction: acc=0.8642, macro_f1=0.8550, weighted_f1=0.8672
+
+Embedding: ./bgp2vec/bgp2vec_asn_embeddings.txt
+  as_relation    : acc=0.9196, macro_f1=0.8562, weighted_f1=0.9234
+  link_prediction: acc=0.8377, macro_f1=0.8208, weighted_f1=0.8392
+
+Embedding: ./output/as_contextual_embedding_1203-map-mfr-no-missing-indicator-4_lambda-40_epoch.txt
+  as_relation    : acc=0.9266, macro_f1=0.8644, weighted_f1=0.9295
+  link_prediction: acc=0.8848, macro_f1=0.8738, weighted_f1=0.8862
+
+百分之60:
+
+Embedding: ./deepwalk/deepwalk_embeddings.txt
+  as_relation    : acc=0.8978, macro_f1=0.8055, weighted_f1=0.9034
+  link_prediction: acc=0.8657, macro_f1=0.8515, weighted_f1=0.8668
+
+Embedding: ./deepwalk/node2vec_embeddings.txt
+  as_relation    : acc=0.8953, macro_f1=0.8031, weighted_f1=0.9013
+  link_prediction: acc=0.8678, macro_f1=0.8539, weighted_f1=0.8689
+
+Embedding: ./dataset/beam.txt
+  as_relation    : acc=0.9023, macro_f1=0.8365, weighted_f1=0.9073
+  link_prediction: acc=0.8693, macro_f1=0.8600, weighted_f1=0.8720
+
+Embedding: ./bgp2vec/bgp2vec_asn_embeddings.txt
+  as_relation    : acc=0.9262, macro_f1=0.8673, weighted_f1=0.9295
+  link_prediction: acc=0.8439, macro_f1=0.8280, weighted_f1=0.8454
+
+Embedding: ./output/as_contextual_embedding_1203-map-mfr-no-missing-indicator-4_lambda-40_epoch.txt
+  as_relation    : acc=0.9311, macro_f1=0.8714, weighted_f1=0.9336
+  link_prediction: acc=0.8864, macro_f1=0.8756, weighted_f1=0.8878
+
+百分之70:
+Embedding: ./deepwalk/deepwalk_embeddings.txt
+  as_relation    : acc=0.9075, macro_f1=0.8238, weighted_f1=0.9122
+  link_prediction: acc=0.8807, macro_f1=0.8674, weighted_f1=0.8814
+
+Embedding: ./deepwalk/node2vec_embeddings.txt
+  as_relation    : acc=0.9060, macro_f1=0.8222, weighted_f1=0.9108
+  link_prediction: acc=0.8815, macro_f1=0.8684, weighted_f1=0.8822
+
+Embedding: ./dataset/beam.txt
+  as_relation    : acc=0.9102, macro_f1=0.8470, weighted_f1=0.9143
+  link_prediction: acc=0.8828, macro_f1=0.8731, weighted_f1=0.8848
+
+Embedding: ./bgp2vec/bgp2vec_asn_embeddings.txt
+  as_relation    : acc=0.9344, macro_f1=0.8796, weighted_f1=0.9369
+  link_prediction: acc=0.8575, macro_f1=0.8420, weighted_f1=0.8585
+
+Embedding: ./output/as_contextual_embedding_1203-map-mfr-no-missing-indicator-4_lambda-40_epoch.txt
+  as_relation    : acc=0.9310, macro_f1=0.8713, weighted_f1=0.9335
+  link_prediction: acc=0.8983, macro_f1=0.8881, weighted_f1=0.8994
+
+百分之80:
+Embedding: ./deepwalk/deepwalk_embeddings.txt
+  as_relation    : acc=0.9096, macro_f1=0.8273, weighted_f1=0.9141
+  link_prediction: acc=0.8867, macro_f1=0.8737, weighted_f1=0.8872
+
+Embedding: ./deepwalk/node2vec_embeddings.txt
+  as_relation    : acc=0.9077, macro_f1=0.8272, weighted_f1=0.9126
+  link_prediction: acc=0.8887, macro_f1=0.8758, weighted_f1=0.8891
+
+Embedding: ./dataset/beam.txt
+  as_relation    : acc=0.9086, macro_f1=0.8452, weighted_f1=0.9130
+  link_prediction: acc=0.8863, macro_f1=0.8772, weighted_f1=0.8884
+
+Embedding: ./bgp2vec/bgp2vec_asn_embeddings.txt
+  as_relation    : acc=0.9384, macro_f1=0.8864, weighted_f1=0.9406
+  link_prediction: acc=0.8697, macro_f1=0.8562, weighted_f1=0.8709
+
+Embedding: ./output/as_contextual_embedding_1203-map-mfr-no-missing-indicator-4_lambda-40_epoch.txt
+  as_relation    : acc=0.9317, macro_f1=0.8744, weighted_f1=0.9344
+  link_prediction: acc=0.8973, macro_f1=0.8873, weighted_f1=0.8985

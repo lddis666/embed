@@ -137,7 +137,7 @@ class ASClassificationPipeline:
         val_ratio=0.1, 
         test_ratio=0.1, 
         embedding_dim=16, 
-        lr=5e-4,
+        lr=5e-5,
         device=None,
         seed=42,
         single_type = True, 
@@ -381,23 +381,30 @@ class ASClassificationPipeline:
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-min_count = 300
+
 
 # -----------------------------
 # 1. Embedding 列表
 # -----------------------------
 embedding_files = [
-    "./feature_embeddings_cls.csv",
+    # "./feature_embeddings_cls.csv",
+
+    # ----
     "./deepwalk/deepwalk_embeddings.txt",
+    "./deepwalk/node2vec_embeddings.txt",
+    "./bgp2vec/bgp2vec_asn_embeddings.txt",
+    "./dataset/beam.txt",
+    # ----
+
     # "./output/as_contextual_embedding_1201-map-mrf-with-feat.txt",
     # "./output/as_contextual_embedding_1201-map-mfr-without-feat.txt",
     # "./dataset/bgp2vec-embeddings.txt",
-    "./dataset/node2vec-embeddings16-10-100.txt",
+    # "./dataset/node2vec-embeddings16-10-100.txt",
     # "./output/as_contextual_embedding.txt",
     # "./output/as_static_embedding.txt", 
-    "./dataset/beam.txt",
+    
     # "./output/as_contextual_embedding_only_map.txt",
-    "./bgp2vec/bgp2vec_asn_embeddings.txt",
+
     # "./output/as_static_embedding_only_map.txt",
     # "./output/as_static_embedding_1127.txt", # 只有任务， 20 epoch, lr 1e-4
     # "./output/as_contextual_embedding_1127.txt",
@@ -458,10 +465,12 @@ embedding_files = [
     # "./output/as_static_embedding_1203-map-mfr-no-missing-indicator.txt",
     # "./output/as_contextual_embedding_1203-map-mfr-no-missing-indicator.txt",
 
-    "./output/as_contextual_embedding_1203-map-mfr-no-missing-indicator-200_lambda-50_epoch.txt",
+    # "./output/as_contextual_embedding_1203-map-mfr-no-missing-indicator-200_lambda-50_epoch.txt",
     # "./output/as_static_embedding_1203-map-mfr-no-missing-indicator-200_lambda-50_epoch.txt",
-    # "./output/as_contextual_embedding_1203-map-mfr-no-missing-indicator-4_lambda-40_epoch.txt",
-    # "./output/as_static_embedding_1203-map-mfr-no-missing-indicator-4_lambda-40_epoch.txt"
+    "./output/as_contextual_embedding_1203-map-mfr-no-missing-indicator-4_lambda-40_epoch.txt",
+    "./output/as_static_embedding_1203-map-mfr-no-missing-indicator-4_lambda-40_epoch.txt",
+    "./output/as_contextual_embedding_1206-no-map.txt",
+    "./output/as_contextual_embedding_1206-no-mfr-new.txt",
     # "./output/as_contextual_embedding_1203-merge.txt"
 
 
@@ -479,8 +488,8 @@ categories = [
     'network_type',
     'policy',
     'industry',
-    # 'as_relation',
-    # 'link_prediction',
+    'as_relation',
+    'link_prediction',
 ]
 
 # ===========================================================
@@ -562,6 +571,9 @@ for emb_path in embedding_files:
                 embedding_loader=emb_loader,  
                 filter_asns=all_as_set,
             )
+            bs = 2048
+            lr = 1e-4
+
         elif cat =='link_prediction':
             ds = LinkPredictionDataset(
                 csv_path='./dataset/raw_edges.csv',
@@ -571,7 +583,10 @@ for emb_path in embedding_files:
                 negative_ratio = 2.0,
                 undirected=False,
             )
+            bs = 2048
+            lr = 1e-4
         else:
+            min_count = 800
             ds = ASCategoryDataset(
                 './node_features.csv',
                 category=cat,
@@ -580,6 +595,8 @@ for emb_path in embedding_files:
                 embedding_loader=emb_loader,
                 filter_asns=all_as_set
             )
+            bs = 256
+            lr = 5e-5
 
             print(f"--- Dataset: {cat} ---")
             print(f"  Total ASNs: {len(ds)}")
@@ -598,14 +615,15 @@ for emb_path in embedding_files:
         pipeline = ASClassificationPipeline(
             ds,
             emb_loader,
-            batch_size=512,
+            batch_size=bs,
             val_ratio=0.1,
             test_ratio=0.1,
+            lr = lr,
             embedding_dim=embedding_dim,
             single_type=False if cat in ['as_relation', 'link_prediction'] else True
         )
 
-        pipeline.train(epochs=30, print_interval=1)
+        pipeline.train(epochs=20, print_interval=1)
 
         # 加载验证集表现最好的模型
         pipeline.load_best_model()
@@ -646,7 +664,127 @@ for emb_path, cat_results in results.items():
               f"acc={data['acc']:.4f}, "
               f"macro_f1={data['macro_f1']:.4f}, "
               f"weighted_f1={data['weighted_f1']:.4f}")
+
+# 保存reslust
+import pickle
+with open("results.pkl", "wb") as f:
+    pickle.dump(results, f)
         
+import pandas as pd
+
+with open("results.pkl", "rb") as f:
+    new_data = pickle.load(f)
+
+
+# ------------------------------------------------------
+# 1) 解析新的嵌套数据结构 → 转成 rows 列表
+# ------------------------------------------------------
+rows = []
+
+for embedding, tasks_dict in new_data.items():  # 每个 embedding 对应一个文件
+    
+    emb_name = embedding.split("/")[-1].replace(".csv", "").replace(".txt", "")
+    
+    for task, metrics_dict in tasks_dict.items():  # 每个任务（continent, scope, ...）
+        for metric, val in metrics_dict.items():
+            if metric == "report":  
+                continue  # 不需要报告内容
+            
+            rows.append({
+                "embedding": emb_name,
+                "metric": metric,
+                "task": task,
+                "score": val
+            })
+
+# ------------------------------------------------------
+# 2) 生成新的 DataFrame（与旧格式完全兼容）
+# ------------------------------------------------------
+long_df = pd.DataFrame(rows)
+long_df = long_df[long_df["metric"] == "weighted_f1"]
+long_df_temp = long_df.copy()
+
+# ------------------------------------------------------
+# 3) 计算 ranking（按 metric + task 分组）
+# ------------------------------------------------------
+long_df["rank"] = long_df.groupby(["metric", "task"])["score"] \
+                         .rank(ascending=False, method="average")
+
+
+# ------------------------------------------------------
+# 4) 每个 embedding 的平均排名
+# ------------------------------------------------------
+avg_rank = long_df.groupby("embedding")["rank"].mean().sort_values()
+
+print("==== 每个 embedding 的平均排名（越小越好） ====")
+print(avg_rank, "\n")
+
+
+
+# ====================================================
+# 1. 在每个 (metric, task) 组内做 Min-Max 归一化
+#    归一化后列名：norm_score
+# ====================================================
+def min_max_group(g):
+    s_min = g["score"].min()
+    s_max = g["score"].max()
+    if s_max == s_min:
+        # 所有 embedding 在这个 metric+task 上得分一样，
+        # 归一化后全设为 1（或者 0.5 也行，看你习惯）
+        g["norm_score"] = 1.0
+    else:
+        g["norm_score"] = (g["score"] - s_min) / (s_max - s_min)
+    return g
+
+
+long_df = long_df_temp
+
+long_df = long_df.groupby(["metric", "task"], group_keys=False).apply(min_max_group)
+
+
+
+
+# ====================================================
+# 2. 按 embedding 聚合：
+#    - AvgScore_i   : norm_score 的平均值
+#    - MinScore_i   : norm_score 的最小值（最差任务）
+#    - Std_i        : norm_score 的标准差（衡量不均衡）
+#    - BalancedScore_i = AvgScore_i - lambda * Std_i
+# ====================================================
+lambda_ = 0.5  # 可根据需要调整
+
+agg_df = (
+    long_df
+    .groupby("embedding")["norm_score"]
+    .agg(AvgScore="mean",
+         MinScore="min",
+         Std="std")
+    .reset_index()
+)
+
+# 可能某些 embedding 在所有 task 上分数一样 → Std 为 NaN，设为 0
+agg_df["Std"] = agg_df["Std"].fillna(0.0)
+
+agg_df["BalancedScore"] = agg_df["AvgScore"] - lambda_ * agg_df["Std"]
+
+# 按 BalancedScore 从高到低排序（也可以按 AvgScore 排）
+agg_df = agg_df.sort_values(by="BalancedScore", ascending=False)
+
+
+
+# ====================================================
+# 3. 如果你想单独看某个指标的排名（可选）
+#    例如按 AvgScore 排序：
+# ====================================================
+print("==== 按 AvgScore 排序（越大越好） ====")
+print(agg_df.sort_values("AvgScore", ascending=False)[
+    ["embedding", "AvgScore", "MinScore", "Std", "BalancedScore"]
+])
+
+
+
+
+
 
 
 

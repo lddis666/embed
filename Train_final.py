@@ -39,13 +39,13 @@ class Config:
     warmup_steps = 100
 
     # 多任务权重
-    lambda_map = 1.0
-    lambda_mfr = 2.0
+    lambda_map = 2.0
+    lambda_mfr = 0.0
 
     # 其它
     seed = 42
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    save_name = "1203-map-mfr-no-missing-indicator-4_lambda-40_epoch"
+    save_name = "1206-no-mfr-new"
 
 
 cfg = Config()
